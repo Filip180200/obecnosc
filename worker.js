@@ -101,16 +101,42 @@ async function markAttendance(request, env) {
   if (session?.exception) return moodleError(session);
   const student = (session.users || []).find((user) => normalName(user.firstname) === firstName && normalName(user.lastname) === lastName);
   if (!student) return json({ error: "Nie znaleziono studenta. Sprawdź pisownię imienia i nazwiska." }, 404);
-  const status = session.statuses?.[0];
-  if (!status || !session.lasttakenby || !session.statusset) return json({ error: "Moodle nie zwrócił danych wymaganych do zapisu obecności." }, 502);
-  const alreadyMarked = (session.attendance_log || []).some((entry) => Number(entry.studentid) === Number(student.id) && Number(entry.statusid) === Number(status.id));
+  const updateData = await resolveAttendanceUpdateRequest(session, await currentUserIdFromMoodle(env));
+  if (!updateData) {
+    console.error("Moodle attendance session payload missing data", { session });
+    return json({ error: "Moodle nie zwrócił danych wymaganych do zapisu obecności." }, 502);
+  }
+  const alreadyMarked = (session.attendance_log || []).some((entry) => Number(entry.studentid) === Number(student.id) && Number(entry.statusid) === updateData.statusId);
   if (!alreadyMarked) {
     const updated = await moodle(env, "mod_attendance_update_user_status", {
-      sessionid: current.sessionId, studentid: Number(student.id), takenbyid: Number(session.lasttakenby), statusid: Number(status.id), statusset: Number(session.statusset),
+      sessionid: current.sessionId,
+      studentid: Number(student.id),
+      takenbyid: updateData.takenById,
+      statusid: updateData.statusId,
+      statusset: updateData.statusSet,
     });
     if (updated?.exception) return moodleError(updated);
   }
   return json({ ok: true, alreadyMarked, student: `${student.firstname} ${student.lastname}`, attendance: await studentStats(env, current.attendanceId, student.id) });
+}
+
+export function resolveAttendanceUpdateRequest(session, currentUserId = null) {
+  const status = Array.isArray(session?.statuses) ? session.statuses.find((item) => Number.isFinite(Number(item?.id))) : null;
+  const statusId = Number(status?.id ?? session?.statusid ?? session?.status?.id);
+  if (!Number.isFinite(statusId) || statusId <= 0) return null;
+  const takenById = Number(session?.lasttakenby ?? session?.takenbyid ?? session?.lasttakenbyid ?? currentUserId ?? 0);
+  const statusSet = Number(session?.statusset ?? session?.statussetid ?? session?.statussetvalue ?? 0);
+  return { statusId, takenById, statusSet };
+}
+
+async function currentUserIdFromMoodle(env) {
+  try {
+    const siteInfo = await moodle(env, "core_webservice_get_site_info", {});
+    return Number(siteInfo?.user?.id ?? siteInfo?.userid ?? siteInfo?.id ?? 0);
+  } catch (error) {
+    console.warn("Nie udało się pobrać id użytkownika Moodle", error);
+    return 0;
+  }
 }
 
 async function studentStats(env, attendanceId, studentId) {
