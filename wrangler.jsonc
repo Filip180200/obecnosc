@@ -10,7 +10,7 @@
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "attendance-db",
+      "database_name": "DB",
       "database_id": "157572c5-cd91-4e8c-ac72-aedbd3f40939"
     }
   ]

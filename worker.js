@@ -122,7 +122,7 @@ export function buildAttendanceUpdatePayload(sessionId, studentId, session) {
   return {
     sessionid: Number(sessionId),
     studentid: Number(studentId),
-    takenbyid: Number.isFinite(takenById) && takenById > 0 ? takenById : 0,
+    takenbyid: Number.isFinite(takenById) && takenById > 0 ? takenById : 1,
     statusid: statusId,
     statusset: Number.isFinite(statusSet) && statusSet > 0 ? statusSet : 1,
   };
