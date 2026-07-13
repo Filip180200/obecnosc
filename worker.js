@@ -108,14 +108,16 @@ async function markAttendance(request, env) {
   }
   const alreadyMarked = (session.attendance_log || []).some((entry) => Number(entry.studentid) === Number(student.id) && Number(entry.statusid) === updateData.statusId);
   if (!alreadyMarked) {
-    const updated = await moodle(env, "mod_attendance_update_user_status", {
-      sessionid: current.sessionId,
-      studentid: Number(student.id),
-      takenbyid: updateData.takenById,
-      statusid: updateData.statusId,
-      statusset: updateData.statusSet,
-    });
-    if (updated?.exception) return moodleError(updated);
+    let lastError = null;
+    for (const payload of attendanceUpdatePayloads(current.sessionId, student.id, updateData)) {
+      const updated = await moodle(env, "mod_attendance_update_user_status", payload);
+      if (!updated?.exception) {
+        lastError = null;
+        break;
+      }
+      lastError = updated;
+    }
+    if (lastError) return moodleError(lastError);
   }
   return json({ ok: true, alreadyMarked, student: `${student.firstname} ${student.lastname}`, attendance: await studentStats(env, current.attendanceId, student.id) });
 }
@@ -125,8 +127,19 @@ export function resolveAttendanceUpdateRequest(session, currentUserId = null) {
   const statusId = Number(status?.id ?? session?.statusid ?? session?.status?.id);
   if (!Number.isFinite(statusId) || statusId <= 0) return null;
   const takenById = Number(session?.lasttakenby ?? session?.takenbyid ?? session?.lasttakenbyid ?? currentUserId ?? 0);
-  const statusSet = Number(session?.statusset ?? session?.statussetid ?? session?.statussetvalue ?? 0);
+  const statusSet = Number(session?.statusset ?? session?.statussetid ?? session?.statussetvalue ?? 1);
   return { statusId, takenById, statusSet };
+}
+
+export function attendanceUpdatePayloads(sessionId, studentId, updateData) {
+  const base = { sessionid: sessionId, studentid: studentId, statusid: updateData.statusId };
+  const statusSet = Number(updateData.statusSet) > 0 ? Number(updateData.statusSet) : 1;
+  const payloads = [];
+  if (Number(updateData.takenById) > 0) payloads.push({ ...base, takenbyid: Number(updateData.takenById), statusset: statusSet });
+  payloads.push({ ...base, statusset: statusSet });
+  payloads.push({ ...base, takenbyid: Number(updateData.takenById) || 0, statusset: statusSet });
+  payloads.push(base);
+  return payloads.filter((payload, index, items) => items.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(payload)) === index);
 }
 
 async function currentUserIdFromMoodle(env) {
