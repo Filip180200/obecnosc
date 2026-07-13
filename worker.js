@@ -117,14 +117,14 @@ async function markAttendance(request, env) {
 export function buildAttendanceUpdatePayload(sessionId, studentId, session) {
   const statusId = Number(session?.statuses?.[0]?.id ?? session?.statusid ?? session?.status?.id);
   if (!Number.isFinite(statusId) || statusId <= 0) return null;
-  const takenById = Number(session?.lasttakenby ?? session?.takenbyid ?? session?.lasttakenbyid ?? 0);
+  const takenById = Number(session?.lasttakenby ?? session?.takenbyid ?? session?.lasttakenbyid ?? session?.takenby ?? 0);
   const statusSet = Number(session?.statusset ?? session?.statussetid ?? session?.statussetvalue ?? 1);
   return {
     sessionid: Number(sessionId),
     studentid: Number(studentId),
-    takenbyid: takenById,
+    takenbyid: Number.isFinite(takenById) && takenById > 0 ? takenById : 0,
     statusid: statusId,
-    statusset: statusSet,
+    statusset: Number.isFinite(statusSet) && statusSet > 0 ? statusSet : 1,
   };
 }
 
