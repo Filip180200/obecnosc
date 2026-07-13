@@ -101,55 +101,31 @@ async function markAttendance(request, env) {
   if (session?.exception) return moodleError(session);
   const student = (session.users || []).find((user) => normalName(user.firstname) === firstName && normalName(user.lastname) === lastName);
   if (!student) return json({ error: "Nie znaleziono studenta. Sprawdź pisownię imienia i nazwiska." }, 404);
-  const updateData = await resolveAttendanceUpdateRequest(session, await currentUserIdFromMoodle(env));
-  if (!updateData) {
+  const updatePayload = buildAttendanceUpdatePayload(current.sessionId, student.id, session);
+  if (!updatePayload) {
     console.error("Moodle attendance session payload missing data", { session });
     return json({ error: "Moodle nie zwrócił danych wymaganych do zapisu obecności." }, 502);
   }
-  const alreadyMarked = (session.attendance_log || []).some((entry) => Number(entry.studentid) === Number(student.id) && Number(entry.statusid) === updateData.statusId);
+  const alreadyMarked = (session.attendance_log || []).some((entry) => Number(entry.studentid) === Number(student.id) && Number(entry.statusid) === updatePayload.statusid);
   if (!alreadyMarked) {
-    let lastError = null;
-    for (const payload of attendanceUpdatePayloads(current.sessionId, student.id, updateData)) {
-      const updated = await moodle(env, "mod_attendance_update_user_status", payload);
-      if (!updated?.exception) {
-        lastError = null;
-        break;
-      }
-      lastError = updated;
-    }
-    if (lastError) return moodleError(lastError);
+    const updated = await moodle(env, "mod_attendance_update_user_status", updatePayload);
+    if (updated?.exception) return moodleError(updated, { studentName: `${student.firstname} ${student.lastname}`, payload: updatePayload });
   }
   return json({ ok: true, alreadyMarked, student: `${student.firstname} ${student.lastname}`, attendance: await studentStats(env, current.attendanceId, student.id) });
 }
 
-export function resolveAttendanceUpdateRequest(session, currentUserId = null) {
-  const status = Array.isArray(session?.statuses) ? session.statuses.find((item) => Number.isFinite(Number(item?.id))) : null;
-  const statusId = Number(status?.id ?? session?.statusid ?? session?.status?.id);
+export function buildAttendanceUpdatePayload(sessionId, studentId, session) {
+  const statusId = Number(session?.statuses?.[0]?.id ?? session?.statusid ?? session?.status?.id);
   if (!Number.isFinite(statusId) || statusId <= 0) return null;
-  const takenById = Number(session?.lasttakenby ?? session?.takenbyid ?? session?.lasttakenbyid ?? currentUserId ?? 0);
+  const takenById = Number(session?.lasttakenby ?? session?.takenbyid ?? session?.lasttakenbyid ?? 0);
   const statusSet = Number(session?.statusset ?? session?.statussetid ?? session?.statussetvalue ?? 1);
-  return { statusId, takenById, statusSet };
-}
-
-export function attendanceUpdatePayloads(sessionId, studentId, updateData) {
-  const base = { sessionid: sessionId, studentid: studentId, statusid: updateData.statusId };
-  const statusSet = Number(updateData.statusSet) > 0 ? Number(updateData.statusSet) : 1;
-  const payloads = [];
-  if (Number(updateData.takenById) > 0) payloads.push({ ...base, takenbyid: Number(updateData.takenById), statusset: statusSet });
-  payloads.push({ ...base, statusset: statusSet });
-  payloads.push({ ...base, takenbyid: Number(updateData.takenById) || 0, statusset: statusSet });
-  payloads.push(base);
-  return payloads.filter((payload, index, items) => items.findIndex((candidate) => JSON.stringify(candidate) === JSON.stringify(payload)) === index);
-}
-
-async function currentUserIdFromMoodle(env) {
-  try {
-    const siteInfo = await moodle(env, "core_webservice_get_site_info", {});
-    return Number(siteInfo?.user?.id ?? siteInfo?.userid ?? siteInfo?.id ?? 0);
-  } catch (error) {
-    console.warn("Nie udało się pobrać id użytkownika Moodle", error);
-    return 0;
-  }
+  return {
+    sessionid: Number(sessionId),
+    studentid: Number(studentId),
+    takenbyid: takenById,
+    statusid: statusId,
+    statusset: statusSet,
+  };
 }
 
 async function studentStats(env, attendanceId, studentId) {
@@ -181,7 +157,11 @@ async function moodle(env, functionName, parameters) {
   return response.json();
 }
 
-function moodleError(result) { console.error("Moodle", result?.errorcode, result?.message); return json({ error: "Moodle zwrócił błąd. Skontaktuj się z prowadzącym." }, 502); }
+function moodleError(result, context = {}) { 
+  console.error("Moodle error", { result, context });
+  const message = result?.message || result?.error || "Moodle zwrócił błąd. Skontaktuj się z prowadzącym.";
+  return json({ error: message }, 502); 
+}
 async function isAdmin(request, env) {
   const token = cookie(request.headers.get("Cookie"), "attendance_admin");
   const [payload, signature] = token?.split(".") || [];
