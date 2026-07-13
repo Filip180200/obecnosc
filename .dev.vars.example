@@ -1,0 +1,4 @@
+# Skopiuj jako .dev.vars wyłącznie do lokalnych testów. Nie dodawaj .dev.vars do Git.
+MOODLE_TOKEN=nowy-token-z-Moodle
+ADMIN_PASSWORD=dlugie-unikalne-haslo
+AUTH_SECRET=losowy-ciag-co-najmniej-32-znaki
