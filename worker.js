@@ -50,6 +50,7 @@ async function route(request, env, url) {
   if (pathname === "/api/public/state" && request.method === "GET") return json({ isOpen: (await state(env)).isOpen });
   if (pathname === "/api/public/attendance" && request.method === "POST") return markAttendance(request, env);
 
+  if (pathname === "/api/public/stats" && request.method === "GET") return stats(env);
   if (!await isAdmin(request, env)) return json({ error: "Sesja wygasła. Zaloguj się ponownie." }, 401);
   if (pathname === "/api/admin/state" && request.method === "GET") return json({ ...(await state(env)), courses: COURSES });
   if (pathname === "/api/admin/state" && request.method === "POST") return saveState(request, env);

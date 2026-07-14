@@ -31,28 +31,32 @@
           <button>Zaloguj się</button>
         </form>
         <section id="admin-panel" hidden>
-          <div class="toolbar"><strong>Konfiguracja sesji</strong><button id="logout" class="secondary small" type="button">Wyloguj</button></div>
+          <div class="toolbar"><strong>Panel prowadzącego</strong><button id="logout" class="secondary small" type="button">Wyloguj</button></div>
           <div id="admin-message" class="message" hidden></div>
-          <form id="state-form">
-            <label>Wybierz kurs<select id="course-select" required><option value="">— Wybierz kurs —</option></select></label>
-            <label>Wybierz sesję<select id="session-select" required disabled><option value="">— Najpierw wybierz kurs —</option></select></label>
-            <label class="switch"><input id="is-open" type="checkbox"><span>Lista obecności otwarta</span></label>
-            <p id="countdown" class="hint" hidden></p>
-            <button>Zapisz ustawienia</button>
-          </form>
-          <hr>
-          <h2>Obecność na żywo</h2><div id="live-stats" class="live">Ładowanie…</div>
+          <p class="drawer-link"><a href="qr.html" target="_blank" rel="noopener">Kod QR dla studentów</a></p>
+          <details class="drawer" open>
+            <summary>Konfiguracja sesji</summary>
+            <div class="drawer-body">
+              <form id="state-form">
+                <label>Wybierz kurs<select id="course-select" required><option value="">— Wybierz kurs —</option></select></label>
+                <label>Wybierz sesję<select id="session-select" required disabled><option value="">— Najpierw wybierz kurs —</option></select></label>
+                <label class="switch"><input id="is-open" type="checkbox"><span>Lista obecności otwarta</span></label>
+                <p id="countdown" class="hint" hidden></p>
+                <button>Zapisz ustawienia</button>
+              </form>
+            </div>
+          </details>
+          <details class="drawer" open>
+            <summary>Obecność</summary>
+            <div class="drawer-body">
+              <div id="live-stats" class="live">Ładowanie…</div>
+            </div>
+          </details>
         </section>
       </div>
       <footer><a href="./">Widok studenta</a></footer>
     </section>
   </main>
-  <a class="admin-toggle" href="?admin=1" aria-label="Panel prowadzącego" title="Panel prowadzącego">
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"></path>
-      <path d="M19.4 13a7.8 7.8 0 0 0 .05-1 7.8 7.8 0 0 0-.05-1l2.1-1.6a.5.5 0 0 0 .12-.64l-2-3.5a.5.5 0 0 0-.6-.22l-2.5 1a7.8 7.8 0 0 0-1.7-1l-.3-2.7a.5.5 0 0 0-.5-.45h-4a.5.5 0 0 0-.5.45l-.3 2.7a7.8 7.8 0 0 0-1.7 1l-2.5-1a.5.5 0 0 0-.6.22l-2 3.5a.5.5 0 0 0 .12.64L4.6 12a7.8 7.8 0 0 0-.05 1 7.8 7.8 0 0 0 .05 1l-2.1 1.6a.5.5 0 0 0-.12.64l2 3.5a.5.5 0 0 0 .6.22l2.5-1a7.8 7.8 0 0 0 1.7 1l.3 2.7a.5.5 0 0 0 .5.45h4a.5.5 0 0 0 .5-.45l.3-2.7a7.8 7.8 0 0 0 1.7-1l2.5 1a.5.5 0 0 0 .6-.22l2-3.5a.5.5 0 0 0-.12-.64Z"></path>
-    </svg>
-  </a>
   <script src="config.js"></script>
   <script type="module" src="app.js"></script>
 </body>

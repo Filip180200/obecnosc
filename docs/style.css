@@ -4,11 +4,8 @@
 header { padding: 1.5rem; text-align: center; background: #0758ab; color: #fff; } header.dark { background: #202938; }
 h1, h2, p { margin-top: 0; } h1 { margin-bottom: .3rem; font-size: 1.65rem; } header p { margin: 0; opacity: .88; }
 .content { padding: 1.5rem; } footer { padding: 1rem; text-align: center; border-top: 1px solid #e5e7eb; font-size: .9rem; }
-.admin-toggle { position: fixed; right: 1rem; bottom: 1rem; display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 999px; border: 1px solid rgba(59, 130, 246, .22); background: linear-gradient(135deg, #ffffff, #eef4ff); color: #1d4ed8; text-decoration: none; box-shadow: 0 10px 24px rgba(15, 23, 42, .14); backdrop-filter: blur(8px); transition: transform .2s ease, box-shadow .2s ease, opacity .2s ease; z-index: 20; }
-.admin-toggle svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.admin-toggle:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 14px 28px rgba(15, 23, 42, .18); }
-.admin-toggle:focus-visible { outline: 2px solid #0758ab; outline-offset: 3px; }
-.admin-toggle.is-hidden { opacity: 0; pointer-events: none; transform: scale(.9); }
+.drawer-link { margin: 0 0 1rem; text-align: right; } .drawer-link a { color: #0758ab; font-weight: 700; text-decoration: none; } .drawer-link a:hover { text-decoration: underline; }
+.drawer { margin-top: .8rem; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; background: #fff; } .drawer > summary { display: flex; justify-content: space-between; align-items: center; padding: .95rem 1rem; list-style: none; cursor: pointer; font-weight: 700; color: #0f172a; background: #f8fafc; } .drawer > summary::-webkit-details-marker { display: none; } .drawer > summary::after { content: "▾"; color: #64748b; font-size: .95rem; } .drawer[open] > summary::after { content: "▸"; } .drawer-body { padding: 1rem; }
 label { display: block; margin: 1rem 0; font-weight: 600; } input:not([type=checkbox]), select { display: block; width: 100%; margin-top: .45rem; padding: .75rem; border: 1px solid #cbd5e1; border-radius: 7px; font: inherit; }
 button { width: 100%; margin-top: .5rem; padding: .8rem 1rem; border: 0; border-radius: 7px; background: #0758ab; color: #fff; font: inherit; font-weight: 700; cursor: pointer; } button:hover { background: #064987; } button:disabled { opacity: .55; cursor: wait; }
 .secondary { background: #eef2f7; color: #1f2937; } .secondary:hover { background: #dbe3ee; } .small { width: auto; margin: 0; padding: .45rem .7rem; font-size: .85rem; }
