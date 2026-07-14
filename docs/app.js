@@ -22,6 +22,10 @@ function show(element, text, type = "") {
 
 if (new URLSearchParams(location.search).has("admin")) startAdmin(); else startStudent();
 
+function toggleAdminToggle(visible) {
+  document.querySelector(".admin-toggle")?.classList.toggle("is-hidden", !visible);
+}
+
 async function startStudent() {
   const form = document.querySelector("#attendance-form");
   const closed = document.querySelector("#closed-notice");
@@ -51,6 +55,7 @@ async function startStudent() {
     } finally { button.disabled = false; }
   });
 
+  toggleAdminToggle(true);
   await refresh();
   setInterval(refresh, 30000);
 }
@@ -71,6 +76,7 @@ function renderAttendance(element, attendance) {
 }
 
 async function startAdmin() {
+  toggleAdminToggle(false);
   document.querySelector("#student-view").hidden = true;
   document.querySelector("#admin-view").hidden = false;
   const loginForm = document.querySelector("#login-form");
@@ -123,10 +129,60 @@ async function startAdmin() {
       holder.replaceChildren();
       const title = document.createElement("strong");
       title.textContent = `Obecnych na sali: ${data.present} / ${data.total}`;
-      const list = document.createElement("ul");
-      (data.names.length ? data.names : ["Nikt nie potwierdził obecności."]).forEach((name) => {
-        const item = document.createElement("li"); item.textContent = name; list.append(item);
-      });
+      const students = Array.isArray(data.students) && data.students.length
+        ? data.students
+        : (data.names || []).map((name) => ({ name, present: true }));
+      const list = document.createElement("ol");
+      list.className = "live-list";
+      if (!students.length) {
+        const empty = document.createElement("li");
+        empty.className = "live-empty";
+        empty.textContent = "Brak uczestników do wyświetlenia.";
+        list.append(empty);
+      } else {
+        students.forEach((student, index) => {
+          const item = document.createElement("li");
+          item.className = `live-item ${student.present ? "present" : "absent"}`;
+          const number = document.createElement("span");
+          number.className = "live-number";
+          number.textContent = index + 1;
+          const name = document.createElement("span");
+          name.className = "live-name";
+          name.textContent = student.name;
+          const toggle = document.createElement("label");
+          toggle.className = "live-toggle";
+          const checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.checked = student.present;
+          checkbox.dataset.studentId = student.id;
+          checkbox.dataset.studentName = student.name;
+          checkbox.addEventListener("change", async (event) => {
+            const input = event.currentTarget;
+            const parsedId = Number(input.dataset.studentId);
+            const nextPresent = input.checked;
+            const studentName = input.dataset.studentName;
+            const confirmed = window.confirm(nextPresent ? `Czy na pewno dodać obecność dla ${studentName}?` : `Czy na pewno usunąć obecność dla ${studentName}?`);
+            if (!confirmed) { input.checked = !nextPresent; return; }
+            input.disabled = true;
+            try {
+              await api("/api/admin/attendance/toggle", { method: "POST", body: JSON.stringify({ studentId: parsedId, present: nextPresent }) });
+              show(message, nextPresent ? `Dodano obecność dla ${studentName}.` : `Usunięto obecność dla ${studentName}.`, "success");
+              await refreshStats();
+            } catch (error) {
+              input.checked = !nextPresent;
+              show(message, error.message, "error");
+            } finally {
+              input.disabled = false;
+            }
+          });
+          toggle.append(checkbox);
+          const status = document.createElement("span");
+          status.className = "live-status";
+          status.textContent = student.present ? "✓" : "–";
+          item.append(number, name, toggle, status);
+          list.append(item);
+        });
+      }
       holder.append(title, list);
     } catch (error) { show(message, error.message, "error"); }
   }

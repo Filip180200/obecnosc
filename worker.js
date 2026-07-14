@@ -37,6 +37,7 @@ async function route(request, env, url) {
   if (pathname === "/api/admin/state" && request.method === "POST") return saveState(request, env);
   if (pathname === "/api/admin/sessions" && request.method === "GET") return sessions(url, env);
   if (pathname === "/api/admin/stats" && request.method === "GET") return stats(env);
+  if (pathname === "/api/admin/attendance/toggle" && request.method === "POST") return toggleAttendance(request, env);
   return json({ error: "Nie znaleziono adresu API." }, 404);
 }
 
@@ -82,11 +83,51 @@ async function stats(env) {
   if (!current.sessionId) return json({ present: 0, total: 0, names: [] });
   const session = await moodle(env, "mod_attendance_get_session", { sessionid: current.sessionId });
   if (session?.exception) return moodleError(session);
-  const users = new Map((session.users || []).map((user) => [Number(user.id), `${user.firstname} ${user.lastname}`]));
+  const users = (session.users || []).map((user) => ({ id: Number(user.id), name: `${user.firstname} ${user.lastname}` }));
   const presentStatus = Number(session.statuses?.[0]?.id);
-  const names = (session.attendance_log || []).filter((entry) => Number(entry.statusid) === presentStatus)
-    .map((entry) => users.get(Number(entry.studentid)) || "Nieznany student").sort((a, b) => a.localeCompare(b, "pl"));
-  return json({ present: names.length, total: users.size, names });
+  const presentIds = new Set((session.attendance_log || [])
+    .filter((entry) => Number(entry.statusid) === presentStatus)
+    .map((entry) => Number(entry.studentid)));
+  const students = users
+    .map((user) => ({ ...user, present: presentIds.has(user.id) }))
+    .sort((a, b) => {
+      if (a.present !== b.present) return a.present ? -1 : 1;
+      return a.name.localeCompare(b.name, "pl");
+    });
+  const names = students.filter((student) => student.present).map((student) => student.name);
+  return json({ present: names.length, total: students.length, names, students });
+}
+
+async function toggleAttendance(request, env) {
+  const body = await request.json().catch(() => null);
+  const studentId = idOrNull(body?.studentId);
+  const present = Boolean(body?.present);
+  if (!studentId) return json({ error: "Nieprawidłowy uczeń." }, 400);
+
+  const current = await state(env);
+  if (!current.sessionId || !current.attendanceId) return json({ error: "Brak aktywnej sesji obecności." }, 409);
+
+  const session = await moodle(env, "mod_attendance_get_session", { sessionid: current.sessionId });
+  if (session?.exception) return moodleError(session);
+  const student = (session.users || []).find((user) => Number(user.id) === studentId);
+  if (!student) return json({ error: "Nie znaleziono studenta." }, 404);
+
+  const statuses = (session.statuses || []).map((item) => Number(item.id)).filter(Number.isFinite);
+  const presentStatusId = statuses[0];
+  const absentStatusId = statuses.find((id) => id !== presentStatusId) ?? null;
+  if (!presentStatusId || (!present && !absentStatusId)) return json({ error: "Nie można zmienić statusu obecności dla tej sesji." }, 400);
+
+  const targetStatusId = present ? presentStatusId : absentStatusId;
+  const currentLogEntry = (session.attendance_log || []).find((entry) => Number(entry.studentid) === studentId);
+  const alreadyMarked = Number(currentLogEntry?.statusid) === targetStatusId;
+  if (!alreadyMarked) {
+    const updatePayload = buildAttendanceUpdatePayload(current.sessionId, student.id, session, targetStatusId);
+    if (!updatePayload) return json({ error: "Moodle nie zwrócił danych wymaganych do zapisu obecności." }, 502);
+    const updated = await moodle(env, "mod_attendance_update_user_status", updatePayload);
+    if (updated?.exception) return moodleError(updated, { studentName: `${student.firstname} ${student.lastname}`, payload: updatePayload });
+  }
+
+  return json({ ok: true, changed: !alreadyMarked, present, student: `${student.firstname} ${student.lastname}` });
 }
 
 async function markAttendance(request, env) {
@@ -114,8 +155,8 @@ async function markAttendance(request, env) {
   return json({ ok: true, alreadyMarked, student: `${student.firstname} ${student.lastname}`, attendance: await studentStats(env, current.attendanceId, student.id) });
 }
 
-export function buildAttendanceUpdatePayload(sessionId, studentId, session) {
-  const statusId = Number(session?.statuses?.[0]?.id ?? session?.statusid ?? session?.status?.id);
+export function buildAttendanceUpdatePayload(sessionId, studentId, session, explicitStatusId = null) {
+  const statusId = Number(explicitStatusId ?? session?.statuses?.[0]?.id ?? session?.statusid ?? session?.status?.id);
   if (!Number.isFinite(statusId) || statusId <= 0) return null;
   const takenById = Number(session?.lasttakenby ?? session?.takenbyid ?? session?.lasttakenbyid ?? session?.takenby ?? 0);
   const statusSet = Number(session?.statusset ?? session?.statussetid ?? session?.statussetvalue ?? 1);

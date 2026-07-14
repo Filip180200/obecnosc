@@ -9,7 +9,7 @@
 <body>
   <main class="card">
     <section id="student-view">
-      <header><h1>Lista obecności</h1><p>System e-WSB</p></header>
+      <header><h1>Lista obecności</h1></header>
       <div class="content">
         <div id="student-message" class="message" hidden></div>
         <div id="closed-notice" class="empty"><h2>Lista jest aktualnie zamknięta</h2><p>Poczekaj, aż prowadzący otworzy rejestrację.</p></div>
@@ -21,7 +21,6 @@
         </form>
         <section id="student-stats" class="stats" hidden></section>
       </div>
-      <footer><a href="?admin=1">Panel prowadzącego</a></footer>
     </section>
     <section id="admin-view" hidden>
       <header class="dark"><h1>Panel prowadzącego</h1><p>Zarządzanie sesją obecności</p></header>
@@ -48,6 +47,12 @@
       <footer><a href="./">Widok studenta</a></footer>
     </section>
   </main>
+  <a class="admin-toggle" href="?admin=1" aria-label="Panel prowadzącego" title="Panel prowadzącego">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"></path>
+      <path d="M19.4 13a7.8 7.8 0 0 0 .05-1 7.8 7.8 0 0 0-.05-1l2.1-1.6a.5.5 0 0 0 .12-.64l-2-3.5a.5.5 0 0 0-.6-.22l-2.5 1a7.8 7.8 0 0 0-1.7-1l-.3-2.7a.5.5 0 0 0-.5-.45h-4a.5.5 0 0 0-.5.45l-.3 2.7a7.8 7.8 0 0 0-1.7 1l-2.5-1a.5.5 0 0 0-.6.22l-2 3.5a.5.5 0 0 0 .12.64L4.6 12a7.8 7.8 0 0 0-.05 1 7.8 7.8 0 0 0 .05 1l-2.1 1.6a.5.5 0 0 0-.12.64l2 3.5a.5.5 0 0 0 .6.22l2.5-1a7.8 7.8 0 0 0 1.7 1l.3 2.7a.5.5 0 0 0 .5.45h4a.5.5 0 0 0 .5-.45l.3-2.7a7.8 7.8 0 0 0 1.7-1l2.5 1a.5.5 0 0 0 .6-.22l2-3.5a.5.5 0 0 0-.12-.64Z"></path>
+    </svg>
+  </a>
   <script src="config.js"></script>
   <script type="module" src="app.js"></script>
 </body>

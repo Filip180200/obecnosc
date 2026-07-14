@@ -4,6 +4,11 @@
 header { padding: 1.5rem; text-align: center; background: #0758ab; color: #fff; } header.dark { background: #202938; }
 h1, h2, p { margin-top: 0; } h1 { margin-bottom: .3rem; font-size: 1.65rem; } header p { margin: 0; opacity: .88; }
 .content { padding: 1.5rem; } footer { padding: 1rem; text-align: center; border-top: 1px solid #e5e7eb; font-size: .9rem; }
+.admin-toggle { position: fixed; right: 1rem; bottom: 1rem; display: grid; place-items: center; width: 3rem; height: 3rem; border-radius: 999px; border: 1px solid rgba(59, 130, 246, .22); background: linear-gradient(135deg, #ffffff, #eef4ff); color: #1d4ed8; text-decoration: none; box-shadow: 0 10px 24px rgba(15, 23, 42, .14); backdrop-filter: blur(8px); transition: transform .2s ease, box-shadow .2s ease, opacity .2s ease; z-index: 20; }
+.admin-toggle svg { width: 1.25rem; height: 1.25rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.admin-toggle:hover { transform: translateY(-2px) scale(1.03); box-shadow: 0 14px 28px rgba(15, 23, 42, .18); }
+.admin-toggle:focus-visible { outline: 2px solid #0758ab; outline-offset: 3px; }
+.admin-toggle.is-hidden { opacity: 0; pointer-events: none; transform: scale(.9); }
 label { display: block; margin: 1rem 0; font-weight: 600; } input:not([type=checkbox]), select { display: block; width: 100%; margin-top: .45rem; padding: .75rem; border: 1px solid #cbd5e1; border-radius: 7px; font: inherit; }
 button { width: 100%; margin-top: .5rem; padding: .8rem 1rem; border: 0; border-radius: 7px; background: #0758ab; color: #fff; font: inherit; font-weight: 700; cursor: pointer; } button:hover { background: #064987; } button:disabled { opacity: .55; cursor: wait; }
 .secondary { background: #eef2f7; color: #1f2937; } .secondary:hover { background: #dbe3ee; } .small { width: auto; margin: 0; padding: .45rem .7rem; font-size: .85rem; }
@@ -11,4 +16,15 @@ button { width: 100%; margin-top: .5rem; padding: .8rem 1rem; border: 0; border-
 .message { padding: .8rem 1rem; margin-bottom: 1rem; border-radius: 7px; background: #eef2ff; color: #3730a3; } .message.error { background: #fef2f2; color: #b42318; } .message.success { background: #ecfdf3; color: #067647; }
 .stats, .live { margin-top: 1.25rem; padding: 1rem; border: 1px solid #bbf7d0; border-radius: 8px; background: #f0fdf4; } .progress { height: 1rem; margin: .7rem 0; overflow: hidden; border-radius: 999px; background: #d1fae5; } .progress > div { height: 100%; background: #16a34a; }
 .switch { display: flex; gap: .6rem; align-items: center; } .switch input { width: 1.2rem; height: 1.2rem; } .hint { padding: .6rem; border-radius: 6px; background: #eff6ff; color: #1d4ed8; }
-.toolbar { display: flex; justify-content: space-between; align-items: center; } hr { margin: 1.7rem 0; border: 0; border-top: 1px solid #e5e7eb; } .live ul { margin: .8rem 0 0; padding-left: 1.3rem; } .lead { font-size: 1.05rem; }
+.toolbar { display: flex; justify-content: space-between; align-items: center; } hr { margin: 1.7rem 0; border: 0; border-top: 1px solid #e5e7eb; } .lead { font-size: 1.05rem; }
+.live-list { list-style: none; margin: .8rem 0 0; padding: 0; display: flex; flex-direction: column; gap: .55rem; }
+.live-item { display: flex; align-items: center; gap: .7rem; padding: .7rem .8rem; border-radius: 8px; border: 1px solid #e2e8f0; background: #f8fafc; color: #475569; }
+.live-item.present { background: #ecfdf3; border-color: #a7f3d0; color: #166534; }
+.live-item.absent { opacity: .75; background: #f8fafc; color: #64748b; }
+.live-number { display: grid; place-items: center; width: 1.8rem; height: 1.8rem; border-radius: 999px; background: #e2e8f0; color: #334155; font-weight: 700; font-size: .9rem; flex-shrink: 0; }
+.live-item.present .live-number { background: #22c55e; color: #fff; }
+.live-name { flex: 1; font-weight: 600; }
+.live-toggle { display: inline-flex; align-items: center; cursor: pointer; }
+.live-toggle input { width: 1.05rem; height: 1.05rem; accent-color: #16a34a; cursor: pointer; }
+.live-status { font-size: 1rem; font-weight: 800; color: inherit; }
+.live-empty { padding: .6rem .2rem; color: #64748b; }
