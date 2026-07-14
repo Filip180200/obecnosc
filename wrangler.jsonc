@@ -10,7 +10,7 @@
 
   "vars": {
     "MOODLE_BASE_URL": "https://moodle2.e-wsb.pl",
-    "ALLOWED_ORIGIN": "https://www.ob.edu.pl"
+    "ALLOWED_ORIGIN": "https://ob.edu.pl"
   },
 
   "d1_databases": [
