@@ -12,22 +12,34 @@ const encoder = new TextEncoder();
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin");
-    if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }), env, origin);
-    if (origin && origin !== env.ALLOWED_ORIGIN) return new Response("Forbidden", { status: 403 });
 
-    try {
-      const url = new URL(request.url);
-
-      if (url.pathname.startsWith("/api/")) {
-          const response = await route(request, env, url);
-          return cors(response, env, origin);
-      }
-
-      return env.ASSETS.fetch(request);
-    } catch (error) {
-      console.error(error);
-      return cors(json({ error: "Wystąpił błąd serwera. Spróbuj ponownie." }, 500), env, origin);
+    if (request.method === "OPTIONS") {
+      return cors(new Response(null, { status: 204 }), env, origin);
     }
+
+    if (origin && origin !== env.ALLOWED_ORIGIN) {
+      return new Response("Forbidden", { status: 403 });
+    }
+
+    const url = new URL(request.url);
+
+    // API
+    if (url.pathname.startsWith("/api/")) {
+      try {
+        const response = await route(request, env, url);
+        return cors(response, env, origin);
+      } catch (error) {
+        console.error(error);
+        return cors(
+          json({ error: "Wystąpił błąd serwera. Spróbuj ponownie." }, 500),
+          env,
+          origin
+        );
+      }
+    }
+
+    // Statyczne pliki (index.html, app.js, style.css...)
+    return env.ASSETS.fetch(request);
   },
 };
 
