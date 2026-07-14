@@ -12,16 +12,34 @@ const encoder = new TextEncoder();
 export default {
   async fetch(request, env) {
     const origin = request.headers.get("Origin");
-    if (request.method === "OPTIONS") return cors(new Response(null, { status: 204 }), env, origin);
-    if (origin && origin !== env.ALLOWED_ORIGIN) return new Response("Forbidden", { status: 403 });
 
-    try {
-      const response = await route(request, env, new URL(request.url));
-      return cors(response, env, origin);
-    } catch (error) {
-      console.error(error);
-      return cors(json({ error: "Wystąpił błąd serwera. Spróbuj ponownie." }, 500), env, origin);
+    if (request.method === "OPTIONS") {
+      return cors(new Response(null, { status: 204 }), env, origin);
     }
+
+    if (origin && origin !== env.ALLOWED_ORIGIN) {
+      return new Response("Forbidden", { status: 403 });
+    }
+
+    const url = new URL(request.url);
+
+    // API
+    if (url.pathname.startsWith("/api/")) {
+      try {
+        const response = await route(request, env, url);
+        return cors(response, env, origin);
+      } catch (error) {
+        console.error(error);
+        return cors(
+          json({ error: "Wystąpił błąd serwera. Spróbuj ponownie." }, 500),
+          env,
+          origin
+        );
+      }
+    }
+
+    // Statyczne pliki (index.html, app.js, style.css...)
+    return env.ASSETS.fetch(request);
   },
 };
 
@@ -219,8 +237,8 @@ function nowSeconds() { return Math.floor(Date.now() / 1000); }
 function json(data, status = 200, headers = {}) { return Response.json(data, { status, headers: { "Cache-Control": "no-store", ...headers } }); }
 function cors(response, env, origin) { const headers = new Headers(response.headers); if (origin === env.ALLOWED_ORIGIN) { headers.set("Access-Control-Allow-Origin", origin); headers.set("Access-Control-Allow-Credentials", "true"); headers.set("Access-Control-Allow-Headers", "Content-Type"); headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS"); headers.append("Vary", "Origin"); } return new Response(response.body, { status: response.status, statusText: response.statusText, headers }); }
 function cookie(header, name) { return header?.split(";").map((item) => item.trim()).find((item) => item.startsWith(`${name}=`))?.slice(name.length + 1); }
-function sessionCookie(token) { return `attendance_admin=${token}; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=${ADMIN_SESSION_SECONDS}`; }
-function expiredCookie() { return "attendance_admin=; Path=/; HttpOnly; Secure; SameSite=None; Max-Age=0"; }
+function sessionCookie(token) { return `attendance_admin=${token}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${ADMIN_SESSION_SECONDS}`; }
+function expiredCookie() { return "attendance_admin=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0"; }
 function base64Url(value) { return base64UrlBytes(encoder.encode(value)); }
 function base64UrlBytes(bytes) { let raw = ""; for (const byte of new Uint8Array(bytes)) raw += String.fromCharCode(byte); return btoa(raw).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_"); }
 function fromBase64Url(value) { const raw = atob(value.replace(/-/g, "+").replace(/_/g, "/")); return new TextDecoder().decode(Uint8Array.from(raw, (char) => char.charCodeAt(0))); }

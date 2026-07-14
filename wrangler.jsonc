@@ -3,10 +3,16 @@
   "name": "moodle-attendance-api",
   "main": "./worker.js",
   "compatibility_date": "2026-07-13",
+
+  "assets": {
+    "directory": "./docs"
+  },
+
   "vars": {
     "MOODLE_BASE_URL": "https://moodle2.e-wsb.pl",
-    "ALLOWED_ORIGIN": "https://www.ob.edu.pl"
+    "ALLOWED_ORIGIN": "https://ob.edu.pl"
   },
+
   "d1_databases": [
     {
       "binding": "DB",
