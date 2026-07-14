@@ -5,7 +5,7 @@
   "compatibility_date": "2026-07-13",
   "vars": {
     "MOODLE_BASE_URL": "https://moodle2.e-wsb.pl",
-    "ALLOWED_ORIGIN": "https://ob.lieberfilip.pl"
+    "ALLOWED_ORIGIN": "https://ob.edu.pl"
   },
   "d1_databases": [
     {
