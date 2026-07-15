@@ -33,8 +33,7 @@
         <section id="admin-panel" hidden>
           <div class="toolbar"><strong>Panel prowadzącego</strong><button id="logout" class="secondary small" type="button">Wyloguj</button></div>
           <div id="admin-message" class="message" hidden></div>
-          <p class="drawer-link"><a href="qr.html" target="_blank" rel="noopener">Kod QR dla studentów</a></p>
-          <details class="drawer" open>
+          <details class="drawer" closed>
             <summary>Konfiguracja sesji</summary>
             <div class="drawer-body">
               <form id="state-form">
@@ -46,7 +45,7 @@
               </form>
             </div>
           </details>
-          <details class="drawer" open>
+          <details class="drawer" closed>
             <summary>Obecność</summary>
             <div class="drawer-body">
               <div id="live-stats" class="live">Ładowanie…</div>
