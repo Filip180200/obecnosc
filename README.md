@@ -143,13 +143,13 @@ Poufne dane nie są udostępniane przeglądarce użytkownika.
 ## 📸 Zrzuty ekranu
 
 * ekran studenta,
-* <img width="1362" height="916" alt="image" src="https://github.com/user-attachments/assets/484f179b-315f-48f6-9fe6-095f3dcca85b" />
+  <img width="1362" height="916" alt="image" src="https://github.com/user-attachments/assets/484f179b-315f-48f6-9fe6-095f3dcca85b" />
 
 * panel prowadzącego,
-* <img width="978" height="1366" alt="image" src="https://github.com/user-attachments/assets/3a565b9e-7f44-4d5d-9a08-eb1f5ddf0376" />
+  <img width="978" height="1366" alt="image" src="https://github.com/user-attachments/assets/3a565b9e-7f44-4d5d-9a08-eb1f5ddf0376" />
 
 * zamknięta obecność
-* <img width="1064" height="564" alt="image" src="https://github.com/user-attachments/assets/ab1b7c36-ebc1-4e9d-8bc2-d365e74a3b2e" />
+  <img width="1064" height="564" alt="image" src="https://github.com/user-attachments/assets/ab1b7c36-ebc1-4e9d-8bc2-d365e74a3b2e" />
 
 
 ---
