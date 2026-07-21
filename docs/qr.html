@@ -6,54 +6,15 @@
   <title>QR dla studentów</title>
   <link rel="stylesheet" href="style.css">
   <link rel="icon" type="image/png" href="favicon.png">
-  <style>
-    body { display: grid; place-items: center; min-height: 100vh; }
-    .qr-card { max-width: 460px; width: min(92vw, 460px); padding: 2rem; border-radius: 16px; background: #fff; box-shadow: 0 10px 35px #1e293b1f; text-align: center; }
-    .qr-box { margin: 1.25rem auto 1rem; padding: 1rem; border: 1px solid #e2e8f0; border-radius: 14px; display: inline-block; background: #fff; }
-    .qr-box img { width: min(240px, 70vw); height: auto; display: block; }
-    .muted { color: #64748b; margin-top: .6rem; }
-  </style>
 </head>
-<body>
+<body class="qr-page">
   <main class="qr-card">
     <h1>QR do listy obecności</h1>
-    <p>Skorzystaj kodu, aby odznaczyć obecność!</p>
-    <div class="qr-box" id="qr-box"></div>
-    <p id="status" class="muted">Ładowanie…</p>
+    <p>Studenci mogą użyć kodu albo linku. Z jednego telefonu można kolejno wpisać kilka osób.</p>
+    <div class="qr-box"><img id="qr-image" src="/api/public/qr" alt="Kod QR do strony obecności"></div>
+    <p id="status" class="muted" aria-live="polite">Ładowanie licznika…</p>
     <p><a id="student-link" href="./">Otwórz stronę dla studentów</a></p>
   </main>
-  <script src="config.js"></script>
-  <script>
-    const studentUrl = new URL('./', window.location.href).toString();
-    const qrBox = document.getElementById('qr-box');
-    const status = document.getElementById('status');
-    const link = document.getElementById('student-link');
-    link.href = studentUrl;
-    link.textContent = studentUrl;
-
-    const apiBase = (window.APP_CONFIG?.apiUrl || '').replace(/\/$/, '');
-    const qrUrl = `${apiBase}/api/public/stats`;
-
-    async function loadStats() {
-      try {
-        const response = await fetch(qrUrl, { credentials: 'include' });
-        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Nie udało się pobrać danych.');
-        status.textContent = `Obecnych: ${data.present} / ${data.total}`;
-      } catch (error) {
-        status.textContent = error.message;
-      }
-    }
-
-    async function renderQr() {
-      const img = document.createElement('img');
-      img.alt = 'Kod QR do strony obecności';
-      img.src = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(studentUrl)}`;
-      img.onload = () => { qrBox.replaceChildren(img); loadStats(); };
-      img.onerror = () => { qrBox.textContent = 'Nie udało się wygenerować kodu QR.'; loadStats(); };
-    }
-
-    renderQr();
-  </script>
+  <script type="module" src="qr.js"></script>
 </body>
 </html>

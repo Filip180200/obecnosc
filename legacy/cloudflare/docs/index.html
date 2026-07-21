@@ -12,43 +12,45 @@
     <section id="student-view">
       <header><h1>Lista obecności</h1></header>
       <div class="content">
-        <div id="student-message" class="message" role="status" aria-live="polite" hidden></div>
+        <div id="student-message" class="message" hidden></div>
         <div id="closed-notice" class="empty"><h2>Lista jest aktualnie zamknięta</h2><p>Poczekaj, aż prowadzący otworzy rejestrację.</p></div>
         <form id="attendance-form" hidden>
-          <p class="lead">Wpisz dane osoby, której obecność chcesz potwierdzić.</p>
+          <p class="lead">Wpisz swoje dane, aby potwierdzić obecność na zajęciach.</p>
           <label>Imię<input name="firstName" autocomplete="given-name" required></label>
           <label>Nazwisko<input name="lastName" autocomplete="family-name" required></label>
           <button>Potwierdzam obecność</button>
         </form>
+        <section id="student-stats" class="stats" hidden></section>
       </div>
     </section>
     <section id="admin-view" hidden>
       <header class="dark"><h1>Panel prowadzącego</h1><p>Zarządzanie sesją obecności</p></header>
       <div class="content">
         <form id="login-form">
-          <div id="login-message" class="message" role="alert" aria-live="assertive" hidden></div>
+          <div id="login-message" class="message" hidden></div>
           <label>Hasło dostępowe<input id="password" type="password" autocomplete="current-password" required autofocus></label>
           <button>Zaloguj się</button>
         </form>
         <section id="admin-panel" hidden>
           <div class="toolbar"><strong>Panel prowadzącego</strong><button id="logout" class="secondary small" type="button">Wyloguj</button></div>
-          <div id="admin-message" class="message" role="status" aria-live="polite" hidden></div>
-          <p class="drawer-link"><a href="qr.html" target="_blank" rel="noopener">Pokaż kod QR i licznik</a></p>
-          <details class="drawer">
+          <div id="admin-message" class="message" hidden></div>
+          <details class="drawer" closed>
             <summary>Konfiguracja sesji</summary>
             <div class="drawer-body">
               <form id="state-form">
                 <label>Wybierz kurs<select id="course-select" required><option value="">— Wybierz kurs —</option></select></label>
                 <label>Wybierz sesję<select id="session-select" required disabled><option value="">— Najpierw wybierz kurs —</option></select></label>
                 <label class="switch"><input id="is-open" type="checkbox"><span>Lista obecności otwarta</span></label>
-                <p id="countdown" class="hint" aria-live="polite" hidden></p>
+                <p id="countdown" class="hint" hidden></p>
                 <button>Zapisz ustawienia</button>
               </form>
             </div>
           </details>
-          <details class="drawer" open>
+          <details class="drawer" closed>
             <summary>Obecność</summary>
-            <div class="drawer-body"><div id="live-stats" class="live" aria-live="polite">Ładowanie…</div></div>
+            <div class="drawer-body">
+              <div id="live-stats" class="live">Ładowanie…</div>
+            </div>
           </details>
         </section>
       </div>

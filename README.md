@@ -1,173 +1,82 @@
-# 📋 Obecność
+# Obecność
 
-Nowoczesny system rejestracji obecności studentów zintegrowany z **Moodle Attendance**, zbudowany w oparciu o **Cloudflare Workers** i **Cloudflare D1**.
+System rejestracji obecności studentów zintegrowany z Moodle Attendance. Wersja 2 działa na Oracle Cloud VM jako aplikacja Node.js uruchamiana przez Docker Compose, z Nginx jako reverse proxy i lokalną bazą SQLite.
 
-Aplikacja umożliwia prowadzącym szybkie otwieranie list obecności, a studentom wygodne potwierdzanie obecności poprzez kod QR lub link. Wszystkie dane są zapisywane bezpośrednio w Moodle.
+## Sposób działania
 
----
+1. Prowadzący wybiera kurs i sesję pobraną z Moodle.
+2. Backend sprawdza, czy `sessionId` rzeczywiście należy do wskazanego kursu.
+3. Lista jest otwierana maksymalnie na 15 minut.
+4. Student wpisuje imię i nazwisko.
+5. Z jednego telefonu można kolejno wpisać kilka osób, np. gdy ktoś nie ma sprawnego urządzenia.
+6. Prowadzący porównuje publiczny licznik z liczbą osób na sali i może ręcznie poprawiać statusy.
+7. Właściwa obecność jest zapisywana w Moodle; SQLite przechowuje jedynie stan aplikacji i limit prób logowania.
 
-## ✨ Funkcjonalności
+System nie jest kryptograficznym potwierdzeniem fizycznej tożsamości osoby obsługującej telefon. Ostateczna kontrola liczby obecnych należy do prowadzącego.
 
-* 📱 Rejestracja obecności za pomocą kodu QR lub linku.
-* 🎓 Integracja z modułem **Attendance** w Moodle.
-* 👨‍🏫 Panel prowadzącego do zarządzania sesją.
-* ⏱️ Otwieranie i zamykanie list obecności.
-* 📊 Statystyki obecności w czasie rzeczywistym.
-* 🔄 Synchronizacja z Moodle.
-* 🔒 Bezpieczne przechowywanie danych uwierzytelniających.
-* ☁️ Całość hostowana w infrastrukturze Cloudflare.
-
----
-
-## 🏗️ Architektura
+## Architektura
 
 ```text
-                ┌──────────────────────┐
-                │      Student         │
-                └──────────┬───────────┘
-                           │
-                           ▼
-                 ob.edu.pl (Cloudflare)
-                           │
-                           ▼
-               Cloudflare Worker API
-                    │            │
-                    │            │
-                    ▼            ▼
-             Cloudflare D1    Moodle
+Przeglądarka -> HTTPS/Nginx -> Node.js 24 + Hono -> Moodle Web Services
+                                     |
+                                     +-> SQLite (/data)
 ```
 
-Cała aplikacja działa w środowisku Cloudflare. Przeglądarka komunikuje się wyłącznie z Workerem, który odpowiada za logikę aplikacji oraz komunikację z Moodle.
+Port aplikacji jest publikowany wyłącznie na `127.0.0.1:8788`. Publiczny endpoint statystyk zwraca tylko `present` i `total`; nazwiska są dostępne wyłącznie po zalogowaniu administratora.
 
----
+## Rozwój lokalny
 
-## 🚀 Technologie
-
-* JavaScript (Vanilla JS)
-* HTML5
-* CSS3
-* Cloudflare Workers
-* Cloudflare D1
-* Moodle Web Services
-* Wrangler CLI
-
----
-
-## 📁 Struktura projektu
-
-```text
-.
-├── docs/               # Frontend aplikacji
-│   ├── index.html
-│   ├── style.css
-│   ├── script.js
-│   └── config.js
-│
-├── worker.js           # Backend Cloudflare Worker
-├── schema.sql          # Struktura bazy D1
-├── wrangler.jsonc      # Konfiguracja Workera
-└── README.md
-```
-
----
-
-## ⚙️ Instalacja
-
-### Instalacja zależności
+Wymagany jest Node.js 24.
 
 ```bash
 npm install
+cp .env.example .env
+npm run migrate
+npm run dev
 ```
 
-### Logowanie do Cloudflare
+## Walidacja
 
 ```bash
-npx wrangler login
+npm run lint
+npm run typecheck
+npm test
+npm run build
+docker build -t obecnosc:local .
+docker compose config
 ```
 
-### Utworzenie bazy D1
+## Konfiguracja
 
-```bash
-npx wrangler d1 create attendance-db
-```
+Wszystkie sekrety są przekazywane przez zmienne środowiskowe. Najważniejsze zmienne opisuje `.env.example`:
 
-Następnie wpisz `database_id` do pliku `wrangler.jsonc`.
+- `MOODLE_TOKEN`
+- `ADMIN_PASSWORD`
+- `AUTH_SECRET`
+- `MOODLE_PRESENT_STATUS_ACRONYM`
+- `MOODLE_ABSENT_STATUS_ACRONYM`
+- opcjonalne, jawne `MOODLE_TAKEN_BY_ID` i `MOODLE_STATUS_SET`
 
-### Utworzenie tabel
+Backend nie stosuje ukrytych fallbacków `1` dla identyfikatorów Moodle.
 
-```bash
-npx wrangler d1 execute attendance-db --remote --file=./schema.sql
-```
+## Bezpieczeństwo i prywatność
 
-### Dodanie sekretów
+- sesja administratora jest podpisana HMAC i przechowywana w cookie `HttpOnly`, `Secure`, `SameSite=Lax`;
+- żądania modyfikujące wymagają prawidłowego `Origin`;
+- publiczny licznik nie ujawnia nazwisk ani identyfikatorów Moodle;
+- logi są strukturalne i redagują sekrety oraz dane studentów;
+- zewnętrzny generator QR został zastąpiony lokalnie generowanym SVG;
+- wywołania Moodle mają timeout i operacje zapisujące nie są automatycznie ponawiane;
+- statusy obecności są mapowane po akronimach, a nie pozycji w tablicy.
 
-```bash
-npx wrangler secret put MOODLE_TOKEN
-npx wrangler secret put ADMIN_PASSWORD
-npx wrangler secret put AUTH_SECRET
-```
+## Oracle Cloud
 
-### Wdrożenie
+Pełna instrukcja wdrożenia, konfiguracji Nginx, TLS, backupu, aktualizacji i rollbacku znajduje się w `deploy/oracle/README.md`.
 
-```bash
-npm run deploy
-```
+## Poprzednia wersja Cloudflare
 
-Po wdrożeniu aplikacja jest dostępna pod własną domeną skonfigurowaną w Cloudflare.
+Pliki Cloudflare Workers/D1 są zachowane w `legacy/cloudflare` jako materiał rollbackowy. Nie należy uruchamiać jednocześnie dwóch aktywnych backendów zapisujących tę samą sesję Moodle.
 
----
+## Licencja
 
-## 🔒 Bezpieczeństwo
-
-Poufne dane nie są udostępniane przeglądarce użytkownika.
-
-| Komponent          | Odpowiedzialność                                       |
-| ------------------ | ------------------------------------------------------ |
-| Cloudflare Worker  | Logika aplikacji i komunikacja z Moodle                |
-| Cloudflare D1      | Przechowywanie stanu aplikacji                         |
-| Cloudflare Secrets | Token Moodle, hasło administratora i sekrety aplikacji |
-
----
-
-## 📱 Jak działa?
-
-1. Prowadzący otwiera listę obecności.
-2. Generowany jest kod QR.
-3. Student skanuje kod lub otwiera link.
-4. Worker weryfikuje możliwość zapisania obecności.
-5. Obecność zostaje zapisana w Moodle.
-6. Panel prowadzącego aktualizuje statystyki w czasie rzeczywistym.
-
----
-
-## 📸 Zrzuty ekranu
-
-* ekran studenta,
-  <img width="1362" height="916" alt="image" src="https://github.com/user-attachments/assets/484f179b-315f-48f6-9fe6-095f3dcca85b" />
-
-* panel prowadzącego,
-  <img width="978" height="1366" alt="image" src="https://github.com/user-attachments/assets/3a565b9e-7f44-4d5d-9a08-eb1f5ddf0376" />
-
-* zamknięta obecność
-  <img width="1064" height="564" alt="image" src="https://github.com/user-attachments/assets/ab1b7c36-ebc1-4e9d-8bc2-d365e74a3b2e" />
-
-
----
-
-## 🎯 Zastosowanie
-
-Projekt został stworzony z myślą o prowadzących zajęcia wykorzystujących Moodle. Automatyzuje proces sprawdzania obecności, skraca czas organizacji zajęć i minimalizuje możliwość nadużyć.
-
----
-
-## 👨‍💻 Autor
-
-**Filip Liebersbach**
-
-Projekt rozwijany jako narzędzie wspomagające prowadzenie zajęć akademickich oraz integrację z Moodle.
-
----
-
-## 📄 Licencja
-
-MIT License.
+MIT License. Szczegóły w pliku `LICENSE`.
