@@ -7,11 +7,16 @@ const config = loadConfig();
 const backupDirectory = process.env.BACKUP_DIRECTORY?.trim() || "./backups";
 const retentionDays = Number(process.env.BACKUP_RETENTION_DAYS || "14");
 if (!Number.isInteger(retentionDays) || retentionDays < 1) throw new Error("BACKUP_RETENTION_DAYS musi być dodatnią liczbą całkowitą.");
-fs.mkdirSync(backupDirectory, { recursive: true });
+fs.mkdirSync(backupDirectory, {
+  recursive: true,
+  mode: 0o700
+});
+fs.chmodSync(backupDirectory, 0o700);
 const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
 const destination = path.join(backupDirectory, `attendance-${timestamp}.sqlite3`);
 const db = openDatabase(config.databasePath);
 await db.backup(destination);
+fs.chmodSync(destination, 0o600);
 db.close();
 const check = openDatabase(destination);
 const integrity = check.prepare("PRAGMA integrity_check").get() as { integrity_check?: string } | undefined;

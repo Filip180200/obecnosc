@@ -61,21 +61,22 @@ Backend nie stosuje ukrytych fallbacków `1` dla identyfikatorów Moodle.
 
 ## Bezpieczeństwo i prywatność
 
-- sesja administratora jest podpisana HMAC i przechowywana w cookie `HttpOnly`, `Secure`, `SameSite=Lax`;
+- sesja administratora jest podpisana HMAC, przechowywana w cookie `__Host-`, `HttpOnly`, `Secure`, `SameSite=Strict` i może zostać unieważniona po stronie serwera;
+- kolejne logowanie unieważnia poprzednią sesję administratora;
 - żądania modyfikujące wymagają prawidłowego `Origin`;
 - publiczny licznik nie ujawnia nazwisk ani identyfikatorów Moodle;
+- poprawne zgłoszenia wielu osób z jednego telefonu pozostają dozwolone;
+- powtarzające się błędne wyszukiwania są ograniczane, a Nginx ogranicza tempo żądań zapisujących;
 - logi są strukturalne i redagują sekrety oraz dane studentów;
+- błędy wewnętrzne nie są ujawniane klientowi w środowisku produkcyjnym;
 - zewnętrzny generator QR został zastąpiony lokalnie generowanym SVG;
-- wywołania Moodle mają timeout i operacje zapisujące nie są automatycznie ponawiane;
+- wywołania Moodle i Google mają timeout, a operacje zapisujące Moodle nie są automatycznie ponawiane;
+- integracja Google akceptuje wyłącznie arkusze należące do skonfigurowanego folderu;
 - statusy obecności są mapowane po akronimach, a nie pozycji w tablicy.
 
 ## Oracle Cloud
 
 Pełna instrukcja wdrożenia, konfiguracji Nginx, TLS, backupu, aktualizacji i rollbacku znajduje się w `deploy/oracle/README.md`.
-
-## Poprzednia wersja Cloudflare
-
-Pliki Cloudflare Workers/D1 są zachowane w `legacy/cloudflare` jako materiał rollbackowy. Nie należy uruchamiać jednocześnie dwóch aktywnych backendów zapisujących tę samą sesję Moodle.
 
 ## Licencja
 

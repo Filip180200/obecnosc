@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  googleConfigFromEnv,
   googleDriveListOptions,
   parseGoogleSessionHeader
 } from "../src/google.js";
@@ -30,5 +31,27 @@ describe("Google Drive listing options", () => {
       supportsAllDrives: true,
       includeItemsFromAllDrives: true
     });
+  });
+});
+
+describe("Google environment config", () => {
+  it("requires a finite timeout of at least one second", () => {
+    expect(() =>
+      googleConfigFromEnv({
+        GOOGLE_DRIVE_FOLDER_ID: "folder",
+        GOOGLE_SERVICE_ACCOUNT_EMAIL: "service@example.test",
+        GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: "private-key",
+        GOOGLE_TIMEOUT_MS: "999"
+      })
+    ).toThrow("GOOGLE_TIMEOUT_MS");
+
+    expect(
+      googleConfigFromEnv({
+        GOOGLE_DRIVE_FOLDER_ID: "folder",
+        GOOGLE_SERVICE_ACCOUNT_EMAIL: "service@example.test",
+        GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: "private-key",
+        GOOGLE_TIMEOUT_MS: "12000"
+      })
+    ).toMatchObject({ timeoutMs: 12000 });
   });
 });

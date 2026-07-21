@@ -1,3 +1,4 @@
+
 name: CI
 
 on:
@@ -7,19 +8,41 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
           cache: npm
+
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm sbom --omit=dev --sbom-format spdx > sbom.spdx.json
       - run: docker build -t obecnosc:ci .
+
+      - name: Validate production Compose
+        env:
+          OBECNOSC_ENV_FILE: /tmp/obecnosc-ci.env
+        run: |
+          : > "$OBECNOSC_ENV_FILE"
+          docker compose -f compose.production.yaml config
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: obecnosc-sbom
+          path: sbom.spdx.json
+          if-no-files-found: error
+          retention-days: 14

@@ -12,9 +12,10 @@
 ## 1. Katalogi i sekrety
 
 ```bash
-sudo mkdir -p /srv/obecnosc/app /srv/obecnosc/data /srv/backups/obecnosc /etc/obecnosc
-sudo chown -R "$USER":"$USER" /srv/obecnosc/app
-sudo chown -R 1000:1000 /srv/obecnosc/data
+sudo install -d -m 0750 -o "$USER" -g "$USER" /srv/obecnosc/app
+sudo install -d -m 0700 -o 1000 -g 1000 /srv/obecnosc/data
+sudo install -d -m 0700 -o 1000 -g 1000 /srv/backups/obecnosc
+sudo install -d -m 0750 -o root -g root /etc/obecnosc
 sudo install -m 600 /dev/null /etc/obecnosc/obecnosc.env
 sudo nano /etc/obecnosc/obecnosc.env
 ```
@@ -53,7 +54,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-HSTS włącz dopiero po potwierdzeniu, że HTTPS i odnowienie certyfikatu działają.
+Finalna konfiguracja włącza HSTS dla `ob.edu.pl`. Przed przeładowaniem sprawdź, że certyfikat istnieje i automatyczne odnowienie działa.
 
 ## 4. Sprawdzenie Moodle
 
@@ -117,3 +118,40 @@ docker compose -f compose.production.yaml up -d
 - Sprawdź stronę i Moodle.
 - Nie uruchamiaj równolegle dwóch aktywnych backendów zapisujących tę samą sesję.
 - Stara implementacja znajduje się w `legacy/cloudflare`.
+
+## 9. Wyłączenie starego Cloudflare Workera
+
+Usunięcie kodu z repozytorium nie usuwa istniejącego deploymentu Cloudflare.
+W panelu Cloudflare:
+
+1. usuń wszystkie trasy Workera kierujące `ob.edu.pl` lub subdomeny do starego backendu;
+2. wyłącz albo usuń deployment pod adresem `workers.dev`;
+3. upewnij się, że DNS wskazuje wyłącznie na Oracle/Nginx albo świadomie używane proxy;
+4. obróć `MOODLE_TOKEN`, `AUTH_SECRET`, `ADMIN_PASSWORD` i klucz konta serwisowego Google, jeśli były dostępne staremu wdrożeniu;
+5. sprawdź, że pod żadnym starym adresem `/api/public/stats` nie zwraca nazwisk.
+
+## 10. Kontrola bezpieczeństwa po wdrożeniu
+
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+curl -I https://ob.edu.pl/
+curl -i -X POST https://ob.edu.pl/api/public/attendance   -H 'Content-Type: application/json'   -H 'Origin: https://evil.example'   --data '{}'
+sudo ss -ltnp | grep -E ':80|:443|:8788'
+docker compose -f compose.production.yaml ps
+docker compose -f compose.production.yaml logs --tail=200 app
+```
+
+Oczekiwane wyniki:
+
+- port `8788` nasłuchuje tylko na `127.0.0.1`;
+- obcy `Origin` otrzymuje `403`;
+- powtarzane bardzo szybkie żądania otrzymują `429`;
+- odpowiedzi HTTPS zawierają HSTS, CSP i pozostałe nagłówki ochronne;
+- obcy nagłówek `Host` jest odrzucany.
+
+## 11. Kopia poza serwerem
+
+Lokalny backup ma uprawnienia `0600`, ale awaria całej maszyny nadal może
+usunąć aplikację i kopie. Okresowo kopiuj backup do oddzielnej,
+zaszyfrowanej lokalizacji i wykonuj próbne odtworzenie.
