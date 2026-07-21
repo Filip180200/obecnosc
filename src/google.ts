@@ -2,6 +2,7 @@ import { google, type drive_v3, type sheets_v4 } from "googleapis";
 import { normalizeName, type StudentAttendanceSummary, type StudentStatus } from "./attendance.js";
 
 const GOOGLE_SHEET_MIME = "application/vnd.google-apps.spreadsheet";
+const GOOGLE_FOLDER_MIME = "application/vnd.google-apps.folder";
 const HEADER_PATTERN = /^(\d{2})\.(\d{2})\.(\d{4})\s+(\d{2}):(\d{2})$/;
 
 export interface GoogleCourse {
@@ -74,6 +75,16 @@ export function parseGoogleSessionHeader(label: string): number | null {
   return Math.floor(date.getTime() / 1000);
 }
 
+export function googleDriveListOptions(sharedDriveId?: string) {
+  return {
+    supportsAllDrives: true,
+    includeItemsFromAllDrives: true,
+    ...(sharedDriveId
+      ? { corpora: "drive" as const, driveId: sharedDriveId }
+      : {})
+  };
+}
+
 export class GoogleAttendanceService {
   private readonly drive: drive_v3.Drive;
   private readonly sheets: sheets_v4.Sheets;
@@ -97,12 +108,25 @@ export class GoogleAttendanceService {
     const now = Date.now();
     if (this.courseCache && this.courseCache.expiresAt > now) return this.courseCache.value;
 
+    const folder = await this.drive.files.get({
+      fileId: this.config.folderId,
+      fields: "id,driveId,mimeType",
+      supportsAllDrives: true
+    });
+    if (folder.data.mimeType !== GOOGLE_FOLDER_MIME) {
+      throw new Error(
+        "GOOGLE_DRIVE_FOLDER_ID musi wskazywać folder na Dysku Google."
+      );
+    }
+
+    const sharedDriveId = folder.data.driveId ?? undefined;
     const folderId = this.config.folderId.replace(/'/g, "\\'");
     const response = await this.drive.files.list({
       q: `'${folderId}' in parents and trashed = false and mimeType = '${GOOGLE_SHEET_MIME}'`,
       fields: "files(id,name)",
       orderBy: "name",
-      pageSize: 1000
+      pageSize: 1000,
+      ...googleDriveListOptions(sharedDriveId)
     });
 
     const value = (response.data.files ?? [])
