@@ -28,22 +28,71 @@ async function startStudent() {
   const stats = document.querySelector("#student-stats");
 
   function renderAttendance(attendance) {
+    const percent = Math.max(0, Math.min(100, Number(attendance.percent) || 0));
+    const present = Math.max(0, Number(attendance.present) || 0);
+    const finished = Math.max(0, Number(attendance.finished) || 0);
+    const future = Math.max(0, Number(attendance.future) || 0);
+
     stats.replaceChildren();
-    const title = document.createElement("strong");
-    title.textContent = `Twoja frekwencja: ${attendance.percent}%`;
+    stats.className = "attendance-summary";
 
-    const progress = document.createElement("div");
-    progress.className = "progress";
-    const bar = document.createElement("div");
-    bar.style.width = `${Math.max(0, Math.min(100, Number(attendance.percent) || 0))}%`;
-    progress.append(bar);
+    const eyebrow = document.createElement("p");
+    eyebrow.className = "attendance-summary-eyebrow";
+    eyebrow.textContent = "Podsumowanie frekwencji";
 
-    const details = document.createElement("span");
-    details.textContent =
-      `${attendance.present} obecności z ${attendance.finished} zakończonych zajęć. ` +
-      `Pozostało: ${attendance.future}.`;
+    const hero = document.createElement("div");
+    hero.className = "attendance-summary-hero";
 
-    stats.append(title, progress, details);
+    const percentBadge = document.createElement("div");
+    percentBadge.className = "attendance-summary-percent";
+    percentBadge.setAttribute("aria-label", `Frekwencja: ${percent}%`);
+
+    const percentValue = document.createElement("strong");
+    percentValue.textContent = `${percent}%`;
+
+    const percentLabel = document.createElement("span");
+    percentLabel.textContent = "frekwencji";
+
+    percentBadge.append(percentValue, percentLabel);
+
+    const progressBlock = document.createElement("div");
+    progressBlock.className = "attendance-summary-progress";
+
+    const progressTitle = document.createElement("strong");
+    progressTitle.textContent = "Twoja obecność na zajęciach";
+
+    const progress = document.createElement("progress");
+    progress.max = 100;
+    progress.value = percent;
+    progress.setAttribute("aria-label", `Frekwencja ${percent} procent`);
+
+    const progressCaption = document.createElement("span");
+    progressCaption.textContent =
+      finished > 0
+        ? `Obecność potwierdzona na ${present} z ${finished} zakończonych spotkań.`
+        : "Brak zakończonych spotkań do podsumowania.";
+
+    progressBlock.append(progressTitle, progress, progressCaption);
+    hero.append(percentBadge, progressBlock);
+
+    const metrics = document.createElement("dl");
+    metrics.className = "attendance-summary-metrics";
+
+    const addMetric = (value, label) => {
+      const item = document.createElement("div");
+      const term = document.createElement("dt");
+      const description = document.createElement("dd");
+      term.textContent = label;
+      description.textContent = value;
+      item.append(description, term);
+      metrics.append(item);
+    };
+
+    addMetric(present, "Obecności");
+    addMetric(finished, "Zakończone");
+    addMetric(future, "Pozostało");
+
+    stats.append(eyebrow, hero, metrics);
     stats.hidden = false;
   }
 
