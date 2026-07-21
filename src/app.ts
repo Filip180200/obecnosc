@@ -5,13 +5,19 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import type { AppConfig, Clock, MoodleGateway } from "./types.js";
 import type { Logger } from "./logger.js";
 import type { AppDatabase } from "./db.js";
-import { LoginAttemptRepository, StateRepository } from "./db.js";
+import {
+  AdminSessionRepository,
+  LoginAttemptRepository,
+  PublicFailureRepository,
+  StateRepository
+} from "./db.js";
 import { AttendanceService } from "./attendance.js";
 import type { GoogleAttendanceService } from "./google.js";
 import { SourceStateRepository, type AttendanceSource } from "./source-state.js";
 import { MoodleError } from "./moodle.js";
 import { StatusMappingError } from "./status.js";
 import {
+  ADMIN_COOKIE_NAME,
   clientIp,
   constantEqual,
   createAdminSession,
@@ -49,6 +55,8 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
   const stateRepository = new StateRepository(db);
   const sourceRepository = new SourceStateRepository(db);
   const loginAttempts = new LoginAttemptRepository(db);
+  const publicFailures = new PublicFailureRepository(db);
+  const adminSessions = new AdminSessionRepository(db);
   const attendance = new AttendanceService(config, moodle);
   const app = new Hono<AppEnv>();
 
@@ -95,12 +103,15 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
     ...stateRepository.get(clock.nowSeconds(), config.openSeconds),
     ...sourceRepository.get()
   });
-  const isAdmin = (cookieHeader: string | undefined) =>
-    verifyAdminSession(
+  const isAdmin = (cookieHeader: string | undefined): boolean => {
+    const now = clock.nowSeconds();
+    return verifyAdminSession(
       config,
-      readCookie(cookieHeader, "attendance_admin"),
-      clock.nowSeconds()
+      readCookie(cookieHeader, ADMIN_COOKIE_NAME),
+      now,
+      adminSessions.currentVersion()
     );
+  };
   const requireAdmin = async (
     context: Parameters<Parameters<typeof app.use>[1]>[0],
     next: () => Promise<void>
@@ -150,10 +161,11 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
       return context.json(jsonError("Nieprawidłowe hasło."), 401);
     }
     loginAttempts.clear(ip);
+    const sessionVersion = adminSessions.rotate();
     context.header(
       "Set-Cookie",
       sessionCookie(
-        createAdminSession(config, now),
+        createAdminSession(config, now, sessionVersion),
         config.adminSessionSeconds
       )
     );
@@ -161,6 +173,22 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
   });
 
   app.post("/api/auth/logout", (context) => {
+    const now = clock.nowSeconds();
+    const currentVersion = adminSessions.currentVersion();
+    const token = readCookie(
+      context.req.header("cookie"),
+      ADMIN_COOKIE_NAME
+    );
+    if (
+      verifyAdminSession(
+        config,
+        token,
+        now,
+        currentVersion
+      )
+    ) {
+      adminSessions.rotate();
+    }
     context.header("Set-Cookie", expiredSessionCookie());
     return context.body(null, 204);
   });
@@ -217,11 +245,55 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
         409
       );
     }
+
+    const now = clock.nowSeconds();
+    const ip = clientIp(
+      context.req.raw.headers,
+      config.trustProxy
+    );
+    const sourceSession =
+      current.source === "google"
+        ? `${current.googleCourseId ?? "none"}:${current.googleSessionId ?? "none"}`
+        : `${current.attendanceId ?? "none"}:${current.sessionId ?? "none"}`;
+    const failureKey = `${ip}:${current.source}:${sourceSession}`;
+    publicFailures.cleanup(now);
+    const previousFailure = publicFailures.get(failureKey);
+    if (
+      previousFailure &&
+      previousFailure.resetAt > now &&
+      previousFailure.attempts >= config.maxPublicFailures
+    ) {
+      context.header(
+        "Retry-After",
+        String(Math.max(1, previousFailure.resetAt - now))
+      );
+      return context.json(
+        jsonError(
+          "Zbyt wiele nieudanych prób. Sprawdź dane albo poproś prowadzącego o pomoc."
+        ),
+        429
+      );
+    }
+
     const body = await context.req
       .json<{ firstName?: unknown; lastName?: unknown }>()
       .catch(() => null);
     if (!body) {
       return context.json(jsonError("Nieprawidłowe dane żądania."), 400);
+    }
+    const firstName =
+      typeof body.firstName === "string"
+        ? body.firstName.trim()
+        : "";
+    const lastName =
+      typeof body.lastName === "string"
+        ? body.lastName.trim()
+        : "";
+    if (firstName.length > 100 || lastName.length > 100) {
+      return context.json(
+        jsonError("Imię i nazwisko są zbyt długie."),
+        400
+      );
     }
 
     try {
@@ -239,9 +311,9 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
         const result = await google.mark(
           current.googleCourseId,
           current.googleSessionId,
-          body.firstName,
-          body.lastName,
-          clock.nowSeconds()
+          firstName,
+          lastName,
+          now
         );
         return context.json({ ok: true, ...result });
       }
@@ -255,8 +327,8 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
 
       const result = await attendance.mark(
         current.sessionId,
-        body.firstName,
-        body.lastName
+        firstName,
+        lastName
       );
       let attendanceSummary;
       try {
@@ -286,6 +358,17 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
           error.message.startsWith("W arkuszu jest więcej")
         )
       ) {
+        const latestFailure = publicFailures.get(failureKey);
+        const attempts =
+          latestFailure && latestFailure.resetAt > now
+            ? latestFailure.attempts + 1
+            : 1;
+        publicFailures.fail(
+          failureKey,
+          attempts,
+          now + config.publicFailureWindowSeconds,
+          now
+        );
         return context.json(jsonError(error.message), 404);
       }
       if (
@@ -578,14 +661,13 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
     if (error instanceof StatusMappingError) {
       return context.json(jsonError(error.message), 502);
     }
-    return context.json(
-      jsonError(
-        error instanceof Error
+    const message =
+      config.nodeEnv === "production"
+        ? "Wystąpił błąd serwera. Spróbuj ponownie."
+        : error instanceof Error
           ? error.message
-          : "Wystąpił błąd serwera. Spróbuj ponownie."
-      ),
-      500
-    );
+          : "Wystąpił błąd serwera. Spróbuj ponownie.";
+    return context.json(jsonError(message), 500);
   });
 
   return app;

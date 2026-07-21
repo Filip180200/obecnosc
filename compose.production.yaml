@@ -5,7 +5,7 @@ services:
       target: runtime
     image: obecnosc:production
     env_file:
-      - /etc/obecnosc/obecnosc.env
+      - "${OBECNOSC_ENV_FILE:-/etc/obecnosc/obecnosc.env}"
     ports:
       - "127.0.0.1:8788:3000"
     volumes:
@@ -17,6 +17,10 @@ services:
       - /tmp:size=64m,mode=1777
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: 128
+    stop_grace_period: 15s
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s

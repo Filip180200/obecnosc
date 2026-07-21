@@ -11,5 +11,12 @@ Environment=BACKUP_DIRECTORY=/backups
 Environment=BACKUP_RETENTION_DAYS=14
 ExecStart=/usr/bin/docker compose -f compose.production.yaml run --rm --no-deps app node dist/scripts/backup-db.js
 User=root
+UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictSUIDSGID=true

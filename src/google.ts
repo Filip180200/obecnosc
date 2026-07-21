@@ -21,6 +21,7 @@ export interface GoogleAttendanceConfig {
   folderId: string;
   clientEmail: string;
   privateKey: string;
+  timeoutMs: number;
 }
 
 interface SheetContext {
@@ -108,11 +109,14 @@ export class GoogleAttendanceService {
     const now = Date.now();
     if (this.courseCache && this.courseCache.expiresAt > now) return this.courseCache.value;
 
-    const folder = await this.drive.files.get({
-      fileId: this.config.folderId,
-      fields: "id,driveId,mimeType",
-      supportsAllDrives: true
-    });
+    const folder = await this.drive.files.get(
+      {
+        fileId: this.config.folderId,
+        fields: "id,driveId,mimeType",
+        supportsAllDrives: true
+      },
+      { timeout: this.config.timeoutMs }
+    );
     if (folder.data.mimeType !== GOOGLE_FOLDER_MIME) {
       throw new Error(
         "GOOGLE_DRIVE_FOLDER_ID musi wskazywać folder na Dysku Google."
@@ -121,13 +125,16 @@ export class GoogleAttendanceService {
 
     const sharedDriveId = folder.data.driveId ?? undefined;
     const folderId = this.config.folderId.replace(/'/g, "\\'");
-    const response = await this.drive.files.list({
-      q: `'${folderId}' in parents and trashed = false and mimeType = '${GOOGLE_SHEET_MIME}'`,
-      fields: "files(id,name)",
-      orderBy: "name",
-      pageSize: 1000,
-      ...googleDriveListOptions(sharedDriveId)
-    });
+    const response = await this.drive.files.list(
+      {
+        q: `'${folderId}' in parents and trashed = false and mimeType = '${GOOGLE_SHEET_MIME}'`,
+        fields: "files(id,name)",
+        orderBy: "name",
+        pageSize: 1000,
+        ...googleDriveListOptions(sharedDriveId)
+      },
+      { timeout: this.config.timeoutMs }
+    );
 
     const value = (response.data.files ?? [])
       .map((file) => file.id && file.name ? { spreadsheetId: file.id, course: file.name.trim() } : null)
@@ -138,14 +145,29 @@ export class GoogleAttendanceService {
     return value;
   }
 
+  private async assertAllowedSpreadsheet(
+    spreadsheetId: string
+  ): Promise<void> {
+    const courses = await this.listCourses();
+    if (!courses.some((course) => course.spreadsheetId === spreadsheetId)) {
+      throw new Error(
+        "Wybrany arkusz Google nie należy do skonfigurowanego folderu."
+      );
+    }
+  }
+
   private async context(spreadsheetId: string): Promise<SheetContext> {
+    await this.assertAllowedSpreadsheet(spreadsheetId);
     const cached = this.contextCache.get(spreadsheetId);
     if (cached && cached.expiresAt > Date.now()) return cached.value;
 
-    const metadata = await this.sheets.spreadsheets.get({
-      spreadsheetId,
-      fields: "sheets.properties(title,index)"
-    });
+    const metadata = await this.sheets.spreadsheets.get(
+      {
+        spreadsheetId,
+        fields: "sheets.properties(title,index)"
+      },
+      { timeout: this.config.timeoutMs }
+    );
     const firstSheet = (metadata.data.sheets ?? [])
       .map((sheet) => sheet.properties)
       .filter((properties): properties is NonNullable<typeof properties> => Boolean(properties?.title))
@@ -153,12 +175,15 @@ export class GoogleAttendanceService {
 
     if (!firstSheet?.title) throw new Error("Arkusz Google nie zawiera zakładki.");
 
-    const headerResponse = await this.sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `'${firstSheet.title.replace(/'/g, "''")}'!1:1`,
-      majorDimension: "ROWS",
-      valueRenderOption: "FORMATTED_VALUE"
-    });
+    const headerResponse = await this.sheets.spreadsheets.values.get(
+      {
+        spreadsheetId,
+        range: `'${firstSheet.title.replace(/'/g, "''")}'!1:1`,
+        majorDimension: "ROWS",
+        valueRenderOption: "FORMATTED_VALUE"
+      },
+      { timeout: this.config.timeoutMs }
+    );
     const headers = (headerResponse.data.values?.[0] ?? []).map(clean);
 
     if (headers[0] !== "ID" || headers[1] !== "Imię" || headers[2] !== "Nazwisko") {
@@ -203,12 +228,15 @@ export class GoogleAttendanceService {
   }
 
   private async rows(context: SheetContext): Promise<StudentRow[]> {
-    const response = await this.sheets.spreadsheets.values.get({
-      spreadsheetId: context.spreadsheetId,
-      range: `'${context.sheetTitle.replace(/'/g, "''")}'!A2:ZZ`,
-      majorDimension: "ROWS",
-      valueRenderOption: "FORMATTED_VALUE"
-    });
+    const response = await this.sheets.spreadsheets.values.get(
+      {
+        spreadsheetId: context.spreadsheetId,
+        range: `'${context.sheetTitle.replace(/'/g, "''")}'!A2:ZZ`,
+        majorDimension: "ROWS",
+        valueRenderOption: "FORMATTED_VALUE"
+      },
+      { timeout: this.config.timeoutMs }
+    );
 
     return (response.data.values ?? [])
       .map((values, index) => ({
@@ -362,12 +390,15 @@ export class GoogleAttendanceService {
     rowNumber: number,
     status: string
   ): Promise<void> {
-    await this.sheets.spreadsheets.values.update({
-      spreadsheetId: context.spreadsheetId,
-      range: `'${context.sheetTitle.replace(/'/g, "''")}'!${session.id}${rowNumber}`,
-      valueInputOption: "RAW",
-      requestBody: { values: [[status]] }
-    });
+    await this.sheets.spreadsheets.values.update(
+      {
+        spreadsheetId: context.spreadsheetId,
+        range: `'${context.sheetTitle.replace(/'/g, "''")}'!${session.id}${rowNumber}`,
+        valueInputOption: "RAW",
+        requestBody: { values: [[status]] }
+      },
+      { timeout: this.config.timeoutMs }
+    );
   }
 }
 
@@ -387,5 +418,14 @@ export function googleConfigFromEnv(
       "Google wymaga GOOGLE_DRIVE_FOLDER_ID, GOOGLE_SERVICE_ACCOUNT_EMAIL i GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY."
     );
   }
-  return { folderId, clientEmail, privateKey };
+
+  const timeoutRaw = (env.GOOGLE_TIMEOUT_MS ?? "10000").trim();
+  const timeoutMs = Number(timeoutRaw);
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1000) {
+    throw new Error(
+      "GOOGLE_TIMEOUT_MS musi być liczbą całkowitą >= 1000."
+    );
+  }
+
+  return { folderId, clientEmail, privateKey, timeoutMs };
 }

@@ -18,6 +18,8 @@ export interface AppConfig {
   adminSessionSeconds: number;
   loginWindowSeconds: number;
   maxLoginAttempts: number;
+  publicFailureWindowSeconds: number;
+  maxPublicFailures: number;
   presentStatusAcronym: string;
   absentStatusAcronym: string;
   moodleTakenById: number | undefined;

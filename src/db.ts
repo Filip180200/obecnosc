@@ -24,6 +24,25 @@ const MIGRATIONS = [
       );
       CREATE INDEX IF NOT EXISTS idx_login_attempts_reset_at ON login_attempts(reset_at);
     `
+  },
+  {
+    version: 2,
+    sql: `
+      CREATE TABLE IF NOT EXISTS admin_session_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        version INTEGER NOT NULL DEFAULT 0 CHECK (version >= 0)
+      );
+      INSERT OR IGNORE INTO admin_session_state (id, version) VALUES (1, 0);
+
+      CREATE TABLE IF NOT EXISTS public_failure_attempts (
+        client_key TEXT PRIMARY KEY,
+        attempts INTEGER NOT NULL CHECK (attempts >= 0),
+        reset_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_public_failure_attempts_reset_at
+        ON public_failure_attempts(reset_at);
+    `
   }
 ] as const;
 
@@ -105,5 +124,68 @@ export class LoginAttemptRepository {
 
   clear(ip: string): void {
     this.db.prepare("DELETE FROM login_attempts WHERE ip = ?").run(ip);
+  }
+}
+
+export class AdminSessionRepository {
+  constructor(private readonly db: AppDatabase) {}
+
+  currentVersion(): number {
+    const row = this.db.prepare(
+      "SELECT version FROM admin_session_state WHERE id = 1"
+    ).get() as { version: number };
+    return row.version;
+  }
+
+  rotate(): number {
+    const rotate = this.db.transaction(() => {
+      this.db.prepare(
+        "UPDATE admin_session_state SET version = version + 1 WHERE id = 1"
+      ).run();
+      return this.currentVersion();
+    });
+    return rotate();
+  }
+}
+
+export class PublicFailureRepository {
+  constructor(private readonly db: AppDatabase) {}
+
+  cleanup(nowSeconds: number): void {
+    this.db.prepare(
+      "DELETE FROM public_failure_attempts WHERE reset_at <= ?"
+    ).run(nowSeconds);
+  }
+
+  get(clientKey: string): { attempts: number; resetAt: number } | null {
+    const row = this.db.prepare(`
+      SELECT attempts, reset_at
+      FROM public_failure_attempts
+      WHERE client_key = ?
+    `).get(clientKey) as {
+      attempts: number;
+      reset_at: number;
+    } | undefined;
+    return row ? { attempts: row.attempts, resetAt: row.reset_at } : null;
+  }
+
+  fail(
+    clientKey: string,
+    attempts: number,
+    resetAt: number,
+    nowSeconds: number
+  ): void {
+    this.db.prepare(`
+      INSERT INTO public_failure_attempts (
+        client_key,
+        attempts,
+        reset_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?)
+      ON CONFLICT(client_key) DO UPDATE SET
+        attempts = excluded.attempts,
+        reset_at = excluded.reset_at,
+        updated_at = excluded.updated_at
+    `).run(clientKey, attempts, resetAt, nowSeconds);
   }
 }

@@ -37,12 +37,13 @@ let db: AppDatabase;
 let moodle: FakeMoodle;
 let now: number;
 
-function makeApp() {
+function makeApp(overrides: NodeJS.ProcessEnv = {}) {
   const config = loadConfig({
     NODE_ENV: "test", PUBLIC_URL: origin, ALLOWED_ORIGIN: origin,
     DATABASE_PATH: ":memory:", ADMIN_PASSWORD: "correct-password",
     AUTH_SECRET: "test-auth-secret-at-least-32-characters", MOODLE_BASE_URL: "https://moodle.example",
-    MOODLE_TOKEN: "test", MOODLE_PRESENT_STATUS_ACRONYM: "P", MOODLE_ABSENT_STATUS_ACRONYM: "A"
+    MOODLE_TOKEN: "test", MOODLE_PRESENT_STATUS_ACRONYM: "P", MOODLE_ABSENT_STATUS_ACRONYM: "A",
+    ...overrides
   });
   return createApp({ config, db, moodle, logger, clock: { nowSeconds: () => now } });
 }
@@ -145,6 +146,43 @@ describe("public API", () => {
     const response = await makeApp().request("/api/public/attendance", { method: "POST", headers: { origin: "https://evil.example", "content-type": "application/json" }, body: "{}" });
     expect(response.status).toBe(403);
   });
+
+  it("ogranicza serię błędnych nazw, ale nie ogranicza poprawnych osób per telefon", async () => {
+    new StateRepository(db).save({ isOpen: true, attendanceId: 61195, sessionId: 100, openedAt: now });
+    const app = makeApp({
+      TRUST_PROXY: "true",
+      MAX_PUBLIC_FAILURES: "2",
+      PUBLIC_FAILURE_WINDOW_SECONDS: "900"
+    });
+    const headers = {
+      origin,
+      "content-type": "application/json",
+      "x-real-ip": "203.0.113.10"
+    };
+
+    for (let index = 0; index < 2; index += 1) {
+      const response = await app.request("/api/public/attendance", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          firstName: `Błędne${index}`,
+          lastName: "Nazwisko"
+        })
+      });
+      expect(response.status).toBe(404);
+    }
+
+    const blocked = await app.request("/api/public/attendance", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        firstName: "Jeszcze",
+        lastName: "Błędne"
+      })
+    });
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("retry-after")).toBeTruthy();
+  });
 });
 
 describe("admin API", () => {
@@ -160,6 +198,51 @@ describe("admin API", () => {
     const data = await response.json() as { students: unknown[] };
     expect(response.status).toBe(200);
     expect(data.students).toHaveLength(2);
+  });
+
+  it("ustawia cookie administratora z prefiksem __Host-", async () => {
+    const response = await makeApp().request("/api/auth/login", {
+      method: "POST",
+      headers: { origin, "content-type": "application/json" },
+      body: JSON.stringify({ password: "correct-password" })
+    });
+    expect(response.headers.get("set-cookie")).toContain(
+      "__Host-attendance_admin="
+    );
+    expect(response.headers.get("set-cookie")).toContain("SameSite=Strict");
+  });
+
+  it("unieważnia sesję po wylogowaniu po stronie serwera", async () => {
+    const app = makeApp();
+    const cookie = await login(app);
+    const logout = await app.request("/api/auth/logout", {
+      method: "POST",
+      headers: { origin, cookie }
+    });
+    expect(logout.status).toBe(204);
+    expect(
+      (await app.request("/api/admin/state", { headers: { cookie } })).status
+    ).toBe(401);
+  });
+
+  it("nowe logowanie unieważnia poprzednią sesję administratora", async () => {
+    const app = makeApp();
+    const firstCookie = await login(app);
+    const secondCookie = await login(app);
+    expect(
+      (
+        await app.request("/api/admin/state", {
+          headers: { cookie: firstCookie }
+        })
+      ).status
+    ).toBe(401);
+    expect(
+      (
+        await app.request("/api/admin/state", {
+          headers: { cookie: secondCookie }
+        })
+      ).status
+    ).toBe(200);
   });
 
   it("waliduje sessionId względem kursu", async () => {
@@ -203,4 +286,28 @@ it("healthcheck nie wymaga Moodle", async () => {
   const response = await makeApp().request("/healthz");
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual({ ok: true });
+});
+
+it("nie ujawnia wewnętrznego błędu w produkcji", async () => {
+  new StateRepository(db).save({
+    isOpen: true,
+    attendanceId: 61195,
+    sessionId: 100,
+    openedAt: now
+  });
+  moodle.getSession = async () => {
+    throw new Error("INTERNAL_SECRET_DETAIL");
+  };
+  const app = makeApp({
+    NODE_ENV: "production",
+    PUBLIC_URL: "https://ob.edu.pl",
+    ALLOWED_ORIGIN: "https://ob.edu.pl",
+    ADMIN_PASSWORD: "production-password-long",
+    AUTH_SECRET: "production-auth-secret-at-least-32-characters"
+  });
+  const response = await app.request("/api/public/stats");
+  expect(response.status).toBe(500);
+  expect(await response.json()).toEqual({
+    error: "Wystąpił błąd serwera. Spróbuj ponownie."
+  });
 });

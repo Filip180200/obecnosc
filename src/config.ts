@@ -92,6 +92,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     adminSessionSeconds: integer(env, "ADMIN_SESSION_SECONDS", 28_800, 300),
     loginWindowSeconds: integer(env, "LOGIN_WINDOW_SECONDS", 900, 60),
     maxLoginAttempts: integer(env, "MAX_LOGIN_ATTEMPTS", 5),
+    publicFailureWindowSeconds: integer(
+      env,
+      "PUBLIC_FAILURE_WINDOW_SECONDS",
+      900,
+      60
+    ),
+    maxPublicFailures: integer(env, "MAX_PUBLIC_FAILURES", 60),
     presentStatusAcronym,
     absentStatusAcronym,
     moodleTakenById: optionalInteger(env, "MOODLE_TAKEN_BY_ID"),
