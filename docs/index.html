@@ -39,6 +39,11 @@
             <summary>Konfiguracja sesji</summary>
             <div class="drawer-body">
               <form id="state-form">
+                <fieldset class="source-picker">
+                  <legend>Źródło obecności</legend>
+                  <label class="source-option"><input type="radio" name="source" value="moodle" checked> Moodle</label>
+                  <label class="source-option"><input type="radio" name="source" value="google"> Google</label>
+                </fieldset>
                 <label>Wybierz kurs<select id="course-select" required><option value="">— Wybierz kurs —</option></select></label>
                 <label>Wybierz sesję<select id="session-select" required disabled><option value="">— Najpierw wybierz kurs —</option></select></label>
                 <label class="switch"><input id="is-open" type="checkbox"><span>Lista obecności otwarta</span></label>

@@ -20,6 +20,8 @@ export interface StudentStatus {
   id: number;
   name: string;
   present: boolean;
+  privateId?: string;
+  attendanceStatus?: "present" | "absent" | "unset";
 }
 
 export interface StudentAttendanceSummary {
