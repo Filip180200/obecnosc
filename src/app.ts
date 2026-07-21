@@ -124,7 +124,32 @@ export function createApp(dependencies: AppDependencies): Hono<AppEnv> {
     if (!body) return context.json(jsonError("Nieprawidłowe dane żądania."), 400);
     try {
       const result = await attendance.mark(current.sessionId, body.firstName, body.lastName);
-      return context.json({ ok: true, ...result });
+      let attendanceSummary;
+      try {
+        attendanceSummary = await attendance.studentAttendance(
+          current.attendanceId,
+          result.studentId,
+          clock.nowSeconds()
+        );
+      } catch (error) {
+        logger.warn("student_history_failed", {
+          requestId: context.get("requestId"),
+          attendanceId: current.attendanceId,
+          sessionId: current.sessionId,
+          errorCode:
+            error instanceof MoodleError
+              ? error.code
+              : error instanceof StatusMappingError
+                ? "status_mapping"
+                : "internal"
+        });
+      }
+      return context.json({
+        ok: true,
+        alreadyMarked: result.alreadyMarked,
+        student: result.student,
+        ...(attendanceSummary ? { attendance: attendanceSummary } : {})
+      });
     } catch (error) {
       if (error instanceof Error && error.message.startsWith("Nie znaleziono studenta")) return context.json(jsonError(error.message), 404);
       if (error instanceof Error && error.message === "Uzupełnij imię i nazwisko.") return context.json(jsonError(error.message), 400);

@@ -25,6 +25,28 @@ async function startStudent() {
   const form = document.querySelector("#attendance-form");
   const closed = document.querySelector("#closed-notice");
   const message = document.querySelector("#student-message");
+  const stats = document.querySelector("#student-stats");
+
+  function renderAttendance(attendance) {
+    stats.replaceChildren();
+    const title = document.createElement("strong");
+    title.textContent = `Twoja frekwencja: ${attendance.percent}%`;
+
+    const progress = document.createElement("div");
+    progress.className = "progress";
+    const bar = document.createElement("div");
+    bar.style.width = `${Math.max(0, Math.min(100, Number(attendance.percent) || 0))}%`;
+    progress.append(bar);
+
+    const details = document.createElement("span");
+    details.textContent =
+      `${attendance.present} obecności z ${attendance.finished} zakończonych zajęć. ` +
+      `Pozostało: ${attendance.future}.`;
+
+    stats.append(title, progress, details);
+    stats.hidden = false;
+  }
+
   async function refresh() {
     try {
       const { isOpen } = await api("/api/public/state");
@@ -40,6 +62,8 @@ async function startStudent() {
     try {
       const result = await api("/api/public/attendance", { method: "POST", body: JSON.stringify(Object.fromEntries(new FormData(form))) });
       show(message, result.alreadyMarked ? `Obecność ${result.student} była już potwierdzona.` : `Obecność ${result.student} została zapisana.`, "success");
+      if (result.attendance) renderAttendance(result.attendance);
+      else stats.hidden = true;
       form.reset();
       form.querySelector("input")?.focus();
     } catch (error) {

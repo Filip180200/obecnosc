@@ -7,6 +7,7 @@ import type { Logger } from "../src/logger.js";
 
 class FakeMoodle implements MoodleGateway {
   updates: Record<string, number>[] = [];
+  getSessionsCalls = 0;
   sessions: JsonObject[] = [{ id: 100, sessdate: 1 }];
   session: JsonObject = {
     id: 100,
@@ -22,7 +23,10 @@ class FakeMoodle implements MoodleGateway {
     ],
     attendance_log: []
   };
-  async getSessions(): Promise<JsonObject[]> { return this.sessions; }
+  async getSessions(): Promise<JsonObject[]> {
+    this.getSessionsCalls += 1;
+    return structuredClone(this.sessions);
+  }
   async getSession(): Promise<JsonObject> { return structuredClone(this.session); }
   async updateUserStatus(payload: Record<string, number>): Promise<JsonObject> { this.updates.push(payload); return { ok: true }; }
 }
@@ -75,6 +79,50 @@ describe("public API", () => {
     expect(response.status).toBe(200);
     expect((await response.json()).alreadyMarked).toBe(true);
     expect(moodle.updates).toHaveLength(0);
+  });
+
+  it("zwraca historię frekwencji jednym wywołaniem listy sesji", async () => {
+    new StateRepository(db).save({ isOpen: true, attendanceId: 61195, sessionId: 100, openedAt: now });
+    const statuses = [
+      { id: 20, acronym: "A", description: "Nieobecny" },
+      { id: 10, acronym: "P", description: "Obecny" }
+    ];
+    moodle.sessions = [
+      {
+        id: 90,
+        sessdate: now - 10_000,
+        statuses,
+        users: moodle.session.users,
+        attendance_log: [{ studentid: 1, statusid: 10 }]
+      },
+      {
+        id: 100,
+        sessdate: now - 100,
+        statuses,
+        users: moodle.session.users,
+        attendance_log: [{ studentid: 1, statusid: 20 }]
+      },
+      {
+        id: 110,
+        sessdate: now + 10_000,
+        statuses,
+        users: moodle.session.users,
+        attendance_log: []
+      }
+    ];
+
+    const response = await makeApp().request("/api/public/attendance", {
+      method: "POST",
+      headers: { origin, "content-type": "application/json" },
+      body: JSON.stringify({ firstName: "Jan", lastName: "Kowalski" })
+    });
+    const data = await response.json() as {
+      attendance: { present: number; finished: number; future: number; percent: number };
+    };
+
+    expect(response.status).toBe(200);
+    expect(data.attendance).toEqual({ present: 1, finished: 2, future: 1, percent: 50 });
+    expect(moodle.getSessionsCalls).toBe(1);
   });
 
   it("publiczne statystyki nie ujawniają studentów", async () => {

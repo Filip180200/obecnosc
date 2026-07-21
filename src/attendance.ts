@@ -22,6 +22,13 @@ export interface StudentStatus {
   present: boolean;
 }
 
+export interface StudentAttendanceSummary {
+  present: number;
+  finished: number;
+  future: number;
+  percent: number;
+}
+
 export class AttendanceService {
   constructor(private readonly config: AppConfig, private readonly moodle: MoodleGateway) {}
 
@@ -53,7 +60,50 @@ export class AttendanceService {
     return { present: students.filter((student) => student.present).length, total: students.length, students };
   }
 
-  async mark(sessionId: number, firstNameInput: unknown, lastNameInput: unknown): Promise<{ alreadyMarked: boolean; student: string }> {
+  async studentAttendance(
+    attendanceId: number,
+    studentId: number,
+    nowSeconds: number
+  ): Promise<StudentAttendanceSummary> {
+    const sessions = await this.moodle.getSessions(attendanceId);
+    let present = 0;
+    let finished = 0;
+    let future = 0;
+
+    for (const session of sessions) {
+      const sessionDate = Number(session.sessdate);
+      if (!Number.isFinite(sessionDate)) continue;
+      if (sessionDate > nowSeconds) {
+        future += 1;
+        continue;
+      }
+      if (!Array.isArray(session.statuses) || !Array.isArray(session.attendance_log)) continue;
+
+      let presentStatusId: number;
+      try {
+        presentStatusId = resolveStatusId(session.statuses, this.config.presentStatusAcronym);
+      } catch {
+        continue;
+      }
+
+      finished += 1;
+      const wasPresent = array(session.attendance_log).some(
+        (entry) =>
+          positiveInteger(entry.studentid) === studentId &&
+          positiveInteger(entry.statusid) === presentStatusId
+      );
+      if (wasPresent) present += 1;
+    }
+
+    return {
+      present,
+      finished,
+      future,
+      percent: finished ? Math.round((present * 100) / finished) : 0
+    };
+  }
+
+  async mark(sessionId: number, firstNameInput: unknown, lastNameInput: unknown): Promise<{ alreadyMarked: boolean; student: string; studentId: number }> {
     const firstName = normalizeName(firstNameInput);
     const lastName = normalizeName(lastNameInput);
     if (!firstName || !lastName) throw new Error("Uzupełnij imię i nazwisko.");
@@ -66,7 +116,7 @@ export class AttendanceService {
     const alreadyMarked = array(session.attendance_log).some((entry) => positiveInteger(entry.studentid) === studentId && positiveInteger(entry.statusid) === payload.statusid);
     if (!alreadyMarked) await this.moodle.updateUserStatus(payload);
     const displayName = `${String(student.firstname ?? "").trim()} ${String(student.lastname ?? "").trim()}`.trim();
-    return { alreadyMarked, student: displayName };
+    return { alreadyMarked, student: displayName, studentId };
   }
 
   async toggle(sessionId: number, studentId: number, present: boolean): Promise<{ changed: boolean }> {
